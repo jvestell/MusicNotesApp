@@ -306,7 +306,7 @@ class ChordBuilderVisualizer(tk.Frame):
         
         # Add chord root note name
         self.circle_canvas.create_text(
-            center_x, center_y - radius - 25,
+            center_x, center_y - radius - 45,
             text=f"Root: {chord.root.name}",
             fill=self.colors["accent2"],
             font=("Orbitron", 12, "bold")
