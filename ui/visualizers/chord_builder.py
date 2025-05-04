@@ -111,6 +111,9 @@ class ChordBuilderVisualizer(tk.Frame):
         # Bind resize event
         self.circle_canvas.bind("<Configure>", self._on_resize)
         
+        self.static_items = []  # Store static canvas item IDs
+        self.chord_items = []   # Store dynamic chord highlight item IDs
+        
     def _on_resize(self, event):
         """Handle canvas resize event"""
         self._draw_interval_circle()
@@ -118,83 +121,162 @@ class ChordBuilderVisualizer(tk.Frame):
             self._draw_chord_intervals(self.current_chord)
             
     def _draw_interval_circle(self):
-        """Draw the circle of intervals"""
-        self.circle_canvas.delete("all")
-        
+        """Draw the circle of intervals (static, only once unless size changes)"""
+        # Remove previous static items
+        for item in getattr(self, 'static_items', []):
+            self.circle_canvas.delete(item)
+        self.static_items = []
+
         # Get canvas dimensions
         width = self.circle_canvas.winfo_width()
         height = self.circle_canvas.winfo_height()
-        
-        # Calculate circle dimensions
         center_x = width / 2
         center_y = height / 2
         radius = min(width, height) / 2.5
-        
+
         # Draw outer circle
-        self.circle_canvas.create_oval(
-            center_x - radius, center_y - radius,
-            center_x + radius, center_y + radius,
-            outline=self.colors["grid_line"],
-            width=2
+        self.static_items.append(
+            self.circle_canvas.create_oval(
+                center_x - radius, center_y - radius,
+                center_x + radius, center_y + radius,
+                outline=self.colors["grid_line"],
+                width=2
+            )
         )
-        
         # Draw center point
-        self.circle_canvas.create_oval(
-            center_x - 5, center_y - 5,
-            center_x + 5, center_y + 5,
-            fill=self.colors["text_primary"],
-            outline=""
+        self.static_items.append(
+            self.circle_canvas.create_oval(
+                center_x - 5, center_y - 5,
+                center_x + 5, center_y + 5,
+                fill=self.colors["text_primary"],
+                outline=""
+            )
         )
-        
         # Draw the 12 semitones
+        notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
         for i in range(12):
             angle = math.radians(i * 30 - 90)  # Start at top (C)
-            
-            # Calculate point on circle
             x = center_x + radius * math.cos(angle)
             y = center_y + radius * math.sin(angle)
-            
             # Draw connection line
-            self.circle_canvas.create_line(
-                center_x, center_y, x, y,
-                fill=self.colors["grid_line"],
-                width=1
+            self.static_items.append(
+                self.circle_canvas.create_line(
+                    center_x, center_y, x, y,
+                    fill=self.colors["grid_line"],
+                    width=1
+                )
             )
-            
             # Draw semitone marker
-            self.circle_canvas.create_oval(
-                x - 8, y - 8, x + 8, y + 8,
-                fill=self.colors["bg_light"],
-                outline=self.colors["text_primary"]
+            self.static_items.append(
+                self.circle_canvas.create_oval(
+                    x - 8, y - 8, x + 8, y + 8,
+                    fill=self.colors["bg_light"],
+                    outline=self.colors["text_primary"]
+                )
             )
-            
             # Add semitone label
-            notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-            self.circle_canvas.create_text(
-                x, y,
-                text=notes[i],
-                fill=self.colors["text_primary"],
-                font=("Orbitron", 9)
+            self.static_items.append(
+                self.circle_canvas.create_text(
+                    x, y,
+                    text=notes[i],
+                    fill=self.colors["text_primary"],
+                    font=("Orbitron", 9)
+                )
             )
-            
+
+    def _clear_chord_highlights(self):
+        for item in getattr(self, 'chord_items', []):
+            self.circle_canvas.delete(item)
+        self.chord_items = []
+
+    def _draw_chord_intervals(self, chord: Chord):
+        """Draw the chord intervals on the circle (dynamic highlights only)"""
+        self._draw_interval_circle()  # Ensure static items are present
+        self._clear_chord_highlights()
+        self.chord_items = []
+
+        # Get canvas dimensions
+        width = self.circle_canvas.winfo_width()
+        height = self.circle_canvas.winfo_height()
+        center_x = width / 2
+        center_y = height / 2
+        radius = min(width, height) / 2.5
+        notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+        root_index = notes.index(chord.root.name)
+
+        # Add chord root note name (move further up to avoid overlap)
+        self.chord_items.append(
+            self.circle_canvas.create_text(
+                center_x, center_y - radius - 45,
+                text=f"Root: {chord.root.name}",
+                fill=self.colors["accent2"],
+                font=("Orbitron", 12, "bold")
+            )
+        )
+        # Draw chord tones
+        for i, semitones in enumerate(chord.formula):
+            angle = math.radians(((semitones + root_index) % 12) * 30 - 90)
+            x = center_x + radius * math.cos(angle)
+            y = center_y + radius * math.sin(angle)
+            # Draw highlighted connection line
+            self.chord_items.append(
+                self.circle_canvas.create_line(
+                    center_x, center_y, x, y,
+                    fill=self.colors["accent1"] if i > 0 else self.colors["accent2"],
+                    width=3
+                )
+            )
+            # Draw chord tone marker (larger than the regular markers)
+            color = self.colors["accent2"] if i == 0 else self.colors["accent1"]
+            self.chord_items.append(
+                self.circle_canvas.create_oval(
+                    x - 12, y - 12, x + 12, y + 12,
+                    fill=color,
+                    outline=self.colors["bg_dark"]
+                )
+            )
+            # Get note name
+            note_name = chord.notes[i].name if i < len(chord.notes) else "?"
+            # Add chord tone label
+            self.chord_items.append(
+                self.circle_canvas.create_text(
+                    x, y,
+                    text=note_name,
+                    fill=self.colors["bg_dark"],
+                    font=("Orbitron", 9, "bold")
+                )
+            )
+            # Add interval name (outside the circle)
+            interval_name = self._get_interval_name(semitones)
+            outer_x = center_x + (radius + 25) * math.cos(angle)
+            outer_y = center_y + (radius + 25) * math.sin(angle)
+            self.chord_items.append(
+                self.circle_canvas.create_text(
+                    outer_x, outer_y,
+                    text=interval_name,
+                    fill=self.colors["text_secondary"],
+                    font=("Orbitron", 10)
+                )
+            )
+
     def update_chord(self, chord: Chord):
         """Update the visualizer with a new chord"""
         self.current_chord = chord
-        
-        # Update chord name display
-        self.chord_name.config(text=chord.name)
-        
-        # Update formula display
+        # Only update chord name display if changed
+        if self.chord_name.cget("text") != chord.name:
+            self.chord_name.config(text=chord.name)
+        # Update formula display only if changed
         formula_text = self._get_formula_text(chord)
-        self.formula_display.config(text=formula_text)
-        
-        # Update intervals explanation
+        if self.formula_display.cget("text") != formula_text:
+            self.formula_display.config(text=formula_text)
+        # Update intervals explanation only if changed
         interval_explanation = self._get_interval_explanation(chord)
-        self.intervals_text.config(state=tk.NORMAL)
-        self.intervals_text.delete(1.0, tk.END)
-        self.intervals_text.insert(tk.END, interval_explanation)
-        self.intervals_text.config(state=tk.DISABLED)
-        
+        current_text = self.intervals_text.get("1.0", "end-1c")
+        if current_text != interval_explanation:
+            self.intervals_text.config(state=tk.NORMAL)
+            self.intervals_text.delete(1.0, tk.END)
+            self.intervals_text.insert(tk.END, interval_explanation)
+            self.intervals_text.config(state=tk.DISABLED)
         # Draw the chord on the interval circle
         self._draw_chord_intervals(chord)
         
@@ -286,75 +368,3 @@ class ChordBuilderVisualizer(tk.Frame):
             f"{self._get_formula_text(chord)}\n\n"
             "These specific intervals give the chord its unique sonic character."
         )
-        
-    def _draw_chord_intervals(self, chord: Chord):
-        """Draw the chord intervals on the circle"""
-        self._draw_interval_circle()  # Redraw base circle
-        
-        # Get canvas dimensions
-        width = self.circle_canvas.winfo_width()
-        height = self.circle_canvas.winfo_height()
-        
-        # Calculate circle dimensions
-        center_x = width / 2
-        center_y = height / 2
-        radius = min(width, height) / 2.5
-        
-        # Note names in chromatic order
-        notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-        root_index = notes.index(chord.root.name)
-        
-        # Add chord root note name
-        self.circle_canvas.create_text(
-            center_x, center_y - radius - 45,
-            text=f"Root: {chord.root.name}",
-            fill=self.colors["accent2"],
-            font=("Orbitron", 12, "bold")
-        )
-        
-        # Draw chord tones
-        for i, semitones in enumerate(chord.formula):
-            # Place intervals at their correct position on the fixed dial (C at top)
-            angle = math.radians(((semitones + root_index) % 12) * 30 - 90)
-            
-            # Calculate point on circle
-            x = center_x + radius * math.cos(angle)
-            y = center_y + radius * math.sin(angle)
-            
-            # Draw highlighted connection line
-            self.circle_canvas.create_line(
-                center_x, center_y, x, y,
-                fill=self.colors["accent1"] if i > 0 else self.colors["accent2"],
-                width=3
-            )
-            
-            # Draw chord tone marker (larger than the regular markers)
-            color = self.colors["accent2"] if i == 0 else self.colors["accent1"]
-            self.circle_canvas.create_oval(
-                x - 12, y - 12, x + 12, y + 12,
-                fill=color,
-                outline=self.colors["bg_dark"]
-            )
-            
-            # Get note name
-            note_name = chord.notes[i].name if i < len(chord.notes) else "?"
-            
-            # Add chord tone label
-            self.circle_canvas.create_text(
-                x, y,
-                text=note_name,
-                fill=self.colors["bg_dark"],
-                font=("Orbitron", 9, "bold")
-            )
-            
-            # Add interval name (outside the circle)
-            interval_name = self._get_interval_name(semitones)
-            outer_x = center_x + (radius + 25) * math.cos(angle)
-            outer_y = center_y + (radius + 25) * math.sin(angle)
-            
-            self.circle_canvas.create_text(
-                outer_x, outer_y,
-                text=interval_name,
-                fill=self.colors["text_secondary"],
-                font=("Orbitron", 10)
-            )

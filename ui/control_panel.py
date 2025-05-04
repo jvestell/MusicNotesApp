@@ -338,9 +338,10 @@ class ControlPanel(tk.Frame):
         
     def _show_chord(self):
         """Show the selected chord"""
+        if not self.selected_note.get():
+            return  # Prevent invalid note format error
         root_note = Note(self.selected_note.get() + "4")  # Default to octave 4
         chord_type = self.selected_chord_type.get()
-        
         try:
             chord = self.theory.get_chord(root_note, chord_type)
             self.callback("chord_changed", {"chord": chord})
@@ -349,9 +350,10 @@ class ControlPanel(tk.Frame):
             
     def _show_scale(self):
         """Show the selected scale"""
+        if not self.selected_note.get():
+            return  # Prevent invalid note format error
         root_note = Note(self.selected_note.get() + "4")  # Default to octave 4
         scale_type = self.selected_scale_type.get()
-        
         try:
             scale = self.theory.get_scale(root_note, scale_type)
             self.callback("scale_changed", {"scale": scale})
