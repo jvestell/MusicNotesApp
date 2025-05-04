@@ -113,10 +113,9 @@ class ChordBuilderVisualizer(tk.Frame):
         
     def _on_resize(self, event):
         """Handle canvas resize event"""
+        self._draw_interval_circle()
         if self.current_chord:
-            self.update_chord(self.current_chord)
-        else:
-            self._draw_interval_circle()
+            self._draw_chord_intervals(self.current_chord)
             
     def _draw_interval_circle(self):
         """Draw the circle of intervals"""

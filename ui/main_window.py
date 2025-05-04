@@ -195,6 +195,7 @@ class MainWindow:
         """Handle control panel events"""
         if event_type == "chord_changed":
             self.fretboard.display_chord(data["chord"])
+            self.visualizers["chord_builder"].update_chord(data["chord"])
         elif event_type == "scale_changed":
             self.fretboard.display_scale(data["scale"])
         elif event_type == "clear":
