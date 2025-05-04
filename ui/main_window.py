@@ -112,19 +112,6 @@ class MainWindow:
         
         self.menu_bar.add_cascade(label="View", menu=view_menu)
         
-        # Help menu
-        help_menu = tk.Menu(self.menu_bar, tearoff=0,
-                          bg=self.colors["bg_med"],
-                          fg=self.colors["text_primary"],
-                          activebackground=self.colors["accent1"],
-                          activeforeground=self.colors["bg_dark"])
-        
-        help_menu.add_command(label="Tutorial", command=self._show_tutorial)
-        help_menu.add_command(label="About", command=self._show_about)
-        
-        self.menu_bar.add_cascade(label="Help", menu=help_menu)
-        
-        # Set the menu
         self.root.config(menu=self.menu_bar)
         
     def _create_main_frame(self):
@@ -203,16 +190,6 @@ class MainWindow:
     def _show_chord_builder(self):
         """Show the chord builder visualizer"""
         self._show_visualizer("chord_builder")
-        
-    def _show_tutorial(self):
-        """Show the tutorial dialog"""
-        # Tutorial dialog implementation
-        pass
-        
-    def _show_about(self):
-        """Show the about dialog"""
-        # About dialog implementation
-        pass
         
     def run(self):
         """Run the main application loop"""
