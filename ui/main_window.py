@@ -28,11 +28,11 @@ class MainWindow:
         
         # Setup the main window
         self.root = tk.Tk()
-        self.root.title("NEON FRETBOARD - Cyberpunk Guitar Theory Explorer")
+        self.root.title("NeckNavigator - Guitar Theory Explorer")
         self.root.geometry("1280x800")
         self.root.minsize(1024, 768)
         
-        # Set the cyberpunk theme
+        # Set the NeckNavigator theme
         self._setup_theme()
         
         # Initialize the music theory engine
@@ -46,7 +46,7 @@ class MainWindow:
         self._setup_shortcuts()
         
     def _setup_theme(self):
-        """Setup the cyberpunk theme colors and fonts"""
+        """Setup the NeckNavigator theme colors and fonts"""
         # Define theme colors
         self.colors = {
             "bg_dark": "#0a0a12",
@@ -60,7 +60,7 @@ class MainWindow:
             "fretboard": "#2a2a35"
         }
         
-        # Configure ttk styles for the cyberpunk theme
+        # Configure ttk styles for the NeckNavigator theme
         style = ttk.Style()
         style.theme_use('clam')  # Use clam as base theme
         
@@ -96,14 +96,12 @@ class MainWindow:
                           activeforeground=self.colors["bg_dark"])
         
         file_menu.add_command(label="New Session", command=self._new_session)
-        file_menu.add_command(label="Save Configuration", command=self._save_config)
-        file_menu.add_command(label="Load Configuration", command=self._load_config)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.root.quit)
         
         self.menu_bar.add_cascade(label="File", menu=file_menu)
         
-        # View menu
+        # View menu (Chord Builder only)
         view_menu = tk.Menu(self.menu_bar, tearoff=0,
                           bg=self.colors["bg_med"],
                           fg=self.colors["text_primary"],
@@ -111,8 +109,6 @@ class MainWindow:
                           activeforeground=self.colors["bg_dark"])
         
         view_menu.add_command(label="Chord Builder", command=self._show_chord_builder)
-        view_menu.add_command(label="Scale-Chord Relationships", command=self._show_scale_chord)
-        view_menu.add_command(label="Ear Trainer", command=self._show_ear_trainer)
         
         self.menu_bar.add_cascade(label="View", menu=view_menu)
         
@@ -163,18 +159,8 @@ class MainWindow:
         
     def _init_visualizers(self):
         """Initialize all visualizer components"""
-        # Chord Builder
+        # Chord Builder only
         self.visualizers["chord_builder"] = ChordBuilderVisualizer(
-            self.visualizer_frame, self.theory, self.colors
-        )
-        
-        # Scale-Chord Relationships
-        self.visualizers["scale_chord"] = ScaleChordVisualizer(
-            self.visualizer_frame, self.theory, self.colors
-        )
-        
-        # Ear Trainer
-        self.visualizers["ear_trainer"] = EarTrainerVisualizer(
             self.visualizer_frame, self.theory, self.colors
         )
         
@@ -206,11 +192,7 @@ class MainWindow:
     def _setup_shortcuts(self):
         """Setup keyboard shortcuts"""
         self.root.bind("<Control-n>", lambda e: self._new_session())
-        self.root.bind("<Control-s>", lambda e: self._save_config())
-        self.root.bind("<Control-o>", lambda e: self._load_config())
         self.root.bind("<F1>", lambda e: self._show_chord_builder())
-        self.root.bind("<F2>", lambda e: self._show_scale_chord())
-        self.root.bind("<F3>", lambda e: self._show_ear_trainer())
         
     def _new_session(self):
         """Reset to a new session"""
@@ -218,25 +200,9 @@ class MainWindow:
         self.fretboard.clear()
         self._show_visualizer(None)
         
-    def _save_config(self):
-        """Save current configuration"""
-        self.config.save_config()
-        
-    def _load_config(self):
-        """Load saved configuration"""
-        self.config.load_config()
-        
     def _show_chord_builder(self):
         """Show the chord builder visualizer"""
         self._show_visualizer("chord_builder")
-        
-    def _show_scale_chord(self):
-        """Show the scale-chord relationships visualizer"""
-        self._show_visualizer("scale_chord")
-        
-    def _show_ear_trainer(self):
-        """Show the ear trainer visualizer"""
-        self._show_visualizer("ear_trainer")
         
     def _show_tutorial(self):
         """Show the tutorial dialog"""

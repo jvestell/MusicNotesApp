@@ -225,15 +225,12 @@ class ControlPanel(tk.Frame):
                                     fg=self.colors["text_secondary"],
                                     bg=self.colors["bg_light"])
         action_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
-        
-        # Action buttons
+        # Action buttons (remove Play Sound)
         actions = [
             ("Show Chord", self._show_chord),
             ("Show Scale", self._show_scale),
-            ("Play Sound", self._play_sound),
             ("Clear", self._clear)
         ]
-        
         for text, command in actions:
             btn = self._create_neon_button(action_frame, text, command)
             btn.pack(fill=tk.X, padx=3, pady=3)
@@ -361,9 +358,7 @@ class ControlPanel(tk.Frame):
             print(f"Error: {e}")
             
     def _play_sound(self):
-        """Play the sound of the current chord or scale"""
-        # This would be implemented with the audio engine
-        pass
+        pass  # Remove Play Sound implementation
         
     def _clear(self):
         """Clear the fretboard"""

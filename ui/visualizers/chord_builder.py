@@ -29,7 +29,7 @@ class ChordBuilderVisualizer(tk.Frame):
         """Create all UI widgets"""
         # Title label
         title = tk.Label(self, 
-                       text="CHORD CONSTRUCTION NEURAL INTERFACE", 
+                       text="CHORD CONSTRUCTION", 
                        font=("Orbitron", 16, "bold"),
                        fg=self.colors["accent2"],
                        bg=self.colors["bg_dark"],
