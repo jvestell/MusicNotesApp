@@ -5,9 +5,13 @@ Control panel for the fretboard
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List, Optional, Callable
+import logging
 
 from core.music_theory import MusicTheory
 from core.note_system import Note
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class ControlPanel(tk.Frame):
     """Control panel for the fretboard with cyberpunk styling"""
@@ -281,11 +285,30 @@ class ControlPanel(tk.Frame):
         elif self.selected_scale_type.get():
             self._show_scale()
             
-    def _on_chord_type_selected(self, chord_type):
+    def _on_chord_type_selected(self, chord_type: str):
         """Handle chord type selection"""
+        # Update the selected chord type
         self.selected_chord_type.set(chord_type)
+        
+        # Update the display
         self.chord_display.config(text=f"Chord: {chord_type}")
-        self._show_chord()
+        
+        # Update button states
+        for value, btn in self.highlight_buttons.items():
+            if value == chord_type:
+                btn.config(bg=self.colors["accent1"])
+            else:
+                btn.config(bg=self.colors["bg_dark"])
+        
+        # If we have a root note selected, create and display the chord
+        if self.selected_note.get():
+            try:
+                root_note = Note(self.selected_note.get())
+                chord = self.theory.get_chord(root_note, chord_type)
+                self.callback("chord_changed", {"chord": chord})
+            except Exception as e:
+                logger.error(f"Error creating chord: {e}")
+                self.chord_display.config(text="Error creating chord")
         
     def _on_scale_type_selected(self, scale_type):
         """Handle scale type selection"""

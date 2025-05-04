@@ -54,6 +54,9 @@ class FretboardCanvas(tk.Canvas):
         self.current_chord = None
         self.current_scale = None
         
+        # Current highlight type
+        self.current_highlight_type = ""
+        
         # Set up the canvas
         self.bind("<Configure>", self._on_resize)
         
@@ -268,11 +271,15 @@ class FretboardCanvas(tk.Canvas):
         # Draw the notes
         self._draw_notes()
         
+        # Apply current highlight if any
+        if self.current_highlight_type:
+            self._apply_highlight(self.current_highlight_type)
+        
     def display_scale(self, scale: Scale):
         """Display a scale on the fretboard"""
-        self.clear()  # Clear previous display
+        self.clear()
         self.current_scale = scale
-        self.current_chord = None  # Clear chord when showing scale
+        self.current_chord = None
         
         # Add scale notes to the display
         scale_notes = []
@@ -300,8 +307,23 @@ class FretboardCanvas(tk.Canvas):
         # Store scale notes
         self.displayed_notes = scale_notes
         
-        # Redraw with current highlights
+        # Draw the notes
         self._draw_notes()
+        
+        # Apply current highlight if any
+        if self.current_highlight_type:
+            self._apply_highlight(self.current_highlight_type)
+            
+    def _apply_highlight(self, highlight_type: str):
+        """Apply the specified highlight type"""
+        if highlight_type == "triad":
+            self.highlight_triad()
+        elif highlight_type == "seventh":
+            self.highlight_seventh()
+        elif highlight_type == "root":
+            self.highlight_root()
+        elif highlight_type == "all":
+            self.highlight_all()
         
     def clear(self):
         """Clear all displayed notes"""
@@ -318,6 +340,7 @@ class FretboardCanvas(tk.Canvas):
             
         # Get the triad notes
         if self.current_chord:
+            # For chords, get the actual triad from the chord
             triad = self.current_chord.get_triad()
             triad_names = [note.name for note in triad]
         else:
@@ -358,11 +381,21 @@ class FretboardCanvas(tk.Canvas):
             else:
                 # If chord doesn't have a seventh, create one from the root
                 root = self.current_chord.root
-                seventh = root.transpose(10)  # Minor seventh
+                # For major chords, use major seventh (11 semitones)
+                # For minor/diminished chords, use minor seventh (10 semitones)
+                if "major" in self.current_chord.chord_type.lower():
+                    seventh = root.transpose(11)  # Major seventh
+                else:
+                    seventh = root.transpose(10)  # Minor seventh
         else:
             # For scales, create a dominant seventh from the root note
             root = self.current_scale.root
-            seventh = root.transpose(10)  # Minor seventh
+            # For major scales, use major seventh
+            # For minor scales, use minor seventh
+            if "major" in self.current_scale.scale_type.lower():
+                seventh = root.transpose(11)  # Major seventh
+            else:
+                seventh = root.transpose(10)  # Minor seventh
         
         # Clear previous highlights
         self.highlighted_notes = []
@@ -466,3 +499,9 @@ class FretboardCanvas(tk.Canvas):
                 self.create_text(x, y, text=note_name, 
                                fill=self.colors["bg_dark"],
                                font=("Orbitron", 9))
+
+    def set_highlight_type(self, highlight_type: str):
+        """Set the current highlight type and apply it"""
+        self.current_highlight_type = highlight_type
+        if self.current_chord or self.current_scale:
+            self._apply_highlight(highlight_type)

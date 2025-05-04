@@ -191,36 +191,16 @@ class MainWindow:
         else:
             self.visualizer_frame.pack_forget()
             
-    def _on_control_change(self, event_type: str, data: Dict):
+    def _on_control_change(self, event_type: str, data: dict):
         """Handle control panel events"""
         if event_type == "chord_changed":
-            chord = data["chord"]
-            self.fretboard.display_chord(chord)
-            
-            # Update visualizers if visible
-            if self.visualizers["chord_builder"].winfo_ismapped():
-                self.visualizers["chord_builder"].update_chord(chord)
-                
+            self.fretboard.display_chord(data["chord"])
         elif event_type == "scale_changed":
-            scale = data["scale"]
-            self.fretboard.display_scale(scale)
-            
-            # Update visualizers if visible
-            if self.visualizers["scale_chord"].winfo_ismapped():
-                self.visualizers["scale_chord"].update_scale(scale)
-                
-        elif event_type == "highlight_changed":
-            highlight_type = data["type"]
-            if highlight_type == "triad":
-                self.fretboard.highlight_triad()
-            elif highlight_type == "seventh":
-                self.fretboard.highlight_seventh()
-            elif highlight_type == "root":
-                self.fretboard.highlight_root()
-            elif highlight_type == "all":
-                self.fretboard.highlight_all()
+            self.fretboard.display_scale(data["scale"])
         elif event_type == "clear":
             self.fretboard.clear()
+        elif event_type == "highlight_changed":
+            self.fretboard.set_highlight_type(data["type"])
         
     def _setup_shortcuts(self):
         """Setup keyboard shortcuts"""
