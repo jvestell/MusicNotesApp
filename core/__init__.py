@@ -1,0 +1,3 @@
+"""
+Core music theory package
+""" 
