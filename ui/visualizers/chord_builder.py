@@ -300,6 +300,10 @@ class ChordBuilderVisualizer(tk.Frame):
         center_y = height / 2
         radius = min(width, height) / 2.5
         
+        # Note names in chromatic order
+        notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+        root_index = notes.index(chord.root.name)
+        
         # Add chord root note name
         self.circle_canvas.create_text(
             center_x, center_y - radius - 25,
@@ -310,7 +314,8 @@ class ChordBuilderVisualizer(tk.Frame):
         
         # Draw chord tones
         for i, semitones in enumerate(chord.formula):
-            angle = math.radians((semitones % 12) * 30 - 90)  # Convert semitones to angle
+            # Place intervals at their correct position on the fixed dial (C at top)
+            angle = math.radians(((semitones + root_index) % 12) * 30 - 90)
             
             # Calculate point on circle
             x = center_x + radius * math.cos(angle)
