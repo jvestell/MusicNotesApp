@@ -579,28 +579,66 @@ class FretboardCanvas(tk.Canvas):
         
         # Find all valid positions where the triad can be played within 4 frets
         valid_positions = []
+        lower_string_positions = []  # Positions that use lower strings (E, A, D)
+        
         for start_fret in range(self.frets - 3):  # -3 to ensure we have 4 frets available
             # Check if we can play the triad in this position
             triad_notes = []
-            for string_idx in range(self.strings):
+            uses_lower_strings = False
+            
+            # First try to find positions on lower strings (E, A, D)
+            for string_idx in [5, 4, 3]:  # E, A, D strings (0-based index)
                 open_note = Note(self.tuning[string_idx])
                 for fret in range(start_fret, start_fret + 4):
                     fretted_note = open_note.transpose(fret)
                     if fretted_note.name in triad_names:
                         triad_notes.append((string_idx, fret))
+                        uses_lower_strings = True
                         if len(triad_notes) == 3:  # Found all triad notes
-                            # Only add if the triad is physically playable (within reasonable hand span)
                             if self._is_playable_triad(triad_notes):
-                                valid_positions.append(triad_notes)
+                                if uses_lower_strings:
+                                    lower_string_positions.append(triad_notes)
+                                else:
+                                    valid_positions.append(triad_notes)
                             break
-                if len(triad_notes) == 3:
-                    break
-                    
-        if valid_positions:
-            # Select a random position
-            import random
-            new_position = random.choice(valid_positions)
+                    if len(triad_notes) == 3:
+                        break
             
+            # If we didn't find a position on lower strings, try all strings
+            if len(triad_notes) < 3:
+                triad_notes = []  # Reset for full search
+                for string_idx in range(self.strings):
+                    open_note = Note(self.tuning[string_idx])
+                    for fret in range(start_fret, start_fret + 4):
+                        fretted_note = open_note.transpose(fret)
+                        if fretted_note.name in triad_names:
+                            triad_notes.append((string_idx, fret))
+                            if len(triad_notes) == 3:  # Found all triad notes
+                                if self._is_playable_triad(triad_notes):
+                                    valid_positions.append(triad_notes)
+                                break
+                        if len(triad_notes) == 3:
+                            break
+        
+        # Select a position with a balanced distribution
+        import random
+        if lower_string_positions and valid_positions:
+            # Combine all positions
+            all_positions = lower_string_positions + valid_positions
+            # Give lower string positions a 40% chance of being selected
+            if random.random() < 0.4:
+                new_position = random.choice(lower_string_positions)
+            else:
+                # 60% chance to pick from all positions
+                new_position = random.choice(all_positions)
+        elif lower_string_positions:
+            new_position = random.choice(lower_string_positions)
+        elif valid_positions:
+            new_position = random.choice(valid_positions)
+        else:
+            new_position = None
+        
+        if new_position:
             # Store old position for transition
             old_position = self.current_position
             
