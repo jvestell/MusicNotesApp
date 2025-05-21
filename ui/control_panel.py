@@ -657,8 +657,9 @@ class ControlPanel(tk.Frame):
             self._next_chord()
             self.last_chord_change = current_time
             self.timer_start_time = current_time  # Reset timer start time
+            # Don't reset position timer on chord change
         
-        # Check position timer (5 seconds)
+        # Check position timer (5 seconds) - only if enough time has passed
         if current_time - self.last_position_change >= 5:
             self._next_position()
             self.last_position_change = current_time
@@ -694,9 +695,8 @@ class ControlPanel(tk.Frame):
         # Update display with visual effect
         self._update_current_chord()
         
-        # Reset position timer to ensure immediate position change
-        self.last_position_change = time.time()
-        self._next_position()
+        # Don't reset position timer or trigger new position on chord change
+        # This ensures positions only change every 5 seconds
 
     def _stop_timers(self):
         """Stop all game timers"""
