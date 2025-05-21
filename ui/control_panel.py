@@ -92,6 +92,63 @@ class ControlPanel(tk.Frame):
                                          lambda v=value: self._on_game_mode_selected(v))
             btn.pack(side=tk.LEFT, fill=tk.X, padx=3, pady=3, expand=True)
             
+        # Game settings frame (initially hidden)
+        self.game_settings_frame = tk.LabelFrame(self.left_frame,
+                                               text="GAME SETTINGS",
+                                               font=("Orbitron", 10, "bold"),
+                                               fg=self.colors["text_secondary"],
+                                               bg=self.colors["bg_light"])
+        
+        # Triad cycle time setting
+        triad_frame = tk.Frame(self.game_settings_frame, bg=self.colors["bg_light"])
+        triad_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=3)
+        
+        tk.Label(triad_frame,
+                text="Triad Cycle (sec):",
+                font=("Orbitron", 9),
+                fg=self.colors["text_primary"],
+                bg=self.colors["bg_light"]).pack(side=tk.LEFT, padx=5)
+        
+        self.triad_cycle_time = tk.StringVar(value="5")
+        triad_spinbox = ttk.Spinbox(triad_frame,
+                                   from_=1,
+                                   to=60,
+                                   increment=0.5,  # Allow half-second increments
+                                   width=5,
+                                   textvariable=self.triad_cycle_time,
+                                   state="readonly")
+        triad_spinbox.pack(side=tk.LEFT, padx=5)
+        
+        # Chord cycle time setting
+        chord_frame = tk.Frame(self.game_settings_frame, bg=self.colors["bg_light"])
+        chord_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=3)
+        
+        tk.Label(chord_frame,
+                text="Chord Cycle (sec):",
+                font=("Orbitron", 9),
+                fg=self.colors["text_primary"],
+                bg=self.colors["bg_light"]).pack(side=tk.LEFT, padx=5)
+        
+        self.chord_cycle_time = tk.StringVar(value="15")
+        chord_spinbox = ttk.Spinbox(chord_frame,
+                                   from_=5,
+                                   to=120,
+                                   increment=0.5,  # Allow half-second increments
+                                   width=5,
+                                   textvariable=self.chord_cycle_time,
+                                   state="readonly")
+        chord_spinbox.pack(side=tk.LEFT, padx=5)
+        
+        # Start game button (initially disabled)
+        self.start_game_btn = self._create_neon_button(self.game_settings_frame,
+                                                      "Start Game",
+                                                      self._start_game)
+        self.start_game_btn.config(state=tk.DISABLED)  # Start disabled
+        self.start_game_btn.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        
+        # Initially hide game settings
+        self.game_settings_frame.pack_forget()
+        
         # Chord progression selector (initially hidden)
         self.progression_frame = tk.LabelFrame(self.left_frame,
                                              text="CHORD PROGRESSION",
@@ -134,10 +191,10 @@ class ControlPanel(tk.Frame):
                 "type": type_var,
                 "button": add_btn
             })
-            
+        
         # Initially hide progression selector
         self.progression_frame.pack_forget()
-            
+        
         # Game controls (initially hidden)
         self.game_controls_frame = tk.Frame(game_frame, bg=self.colors["bg_light"])
         self.game_controls_frame.pack(side=tk.TOP, fill=tk.X, padx=3, pady=3)
@@ -161,7 +218,6 @@ class ControlPanel(tk.Frame):
                                              font=("Orbitron", 10, "bold"),
                                              fg=self.colors["text_secondary"],
                                              bg=self.colors["bg_light"])
-        self.game_status_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
         
         # Timer display
         self.timer_display = tk.Label(self.game_status_frame,
@@ -561,18 +617,24 @@ class ControlPanel(tk.Frame):
         self.game_mode.set(mode)
         
         if mode == "revolving_triads":
-            # Show progression selector and game controls
+            # Show game settings and progression selector
+            self.game_settings_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
             self.progression_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-            self.game_controls_frame.pack(side=tk.TOP, fill=tk.X, padx=3, pady=3)
-            self.game_status_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
             
-            # Reset progression
+            # Reset progression and disable start button
             self.chord_progression = []
+            self.start_game_btn.config(state=tk.DISABLED)
             for chord in self.progression_chords:
                 chord["note"].set("")
                 chord["type"].set("")
+                chord["button"].config(text="Add", bg=self.colors["bg_dark"])
+            
+            # Hide game controls and status until game starts
+            self.game_controls_frame.pack_forget()
+            self.game_status_frame.pack_forget()
         else:
-            # Hide progression selector and game controls
+            # Hide all game-related frames
+            self.game_settings_frame.pack_forget()
             self.progression_frame.pack_forget()
             self.game_controls_frame.pack_forget()
             self.game_status_frame.pack_forget()
@@ -604,27 +666,66 @@ class ControlPanel(tk.Frame):
                 bg=self.colors["accent1"]
             )
             
-            # If we have all three chords, enable the game
+            # Enable start button if we have all three chords
             if all(self.chord_progression):
-                self._start_game()
+                self.start_game_btn.config(state=tk.NORMAL)
+            else:
+                self.start_game_btn.config(state=tk.DISABLED)
                 
         except Exception as e:
             logger.error(f"Error adding chord to progression: {e}")
             
     def _start_game(self):
         """Start the revolving triads game"""
+        # Validate chord progression
+        if not all(self.chord_progression):
+            # Show error message
+            tk.messagebox.showwarning(
+                "Incomplete Progression",
+                "Please add all three chords to the progression before starting."
+            )
+            return
+        
+        # Get cycle times from settings
+        try:
+            triad_cycle = float(self.triad_cycle_time.get())  # Use float for more precise timing
+            chord_cycle = float(self.chord_cycle_time.get())
+            
+            if triad_cycle >= chord_cycle:
+                tk.messagebox.showwarning(
+                    "Invalid Settings",
+                    "Triad cycle time must be less than chord cycle time."
+                )
+                return
+        except ValueError:
+            tk.messagebox.showwarning(
+                "Invalid Settings",
+                "Please enter valid numbers for cycle times."
+            )
+            return
+        
+        # Store cycle times
+        self.triad_cycle_seconds = triad_cycle
+        self.chord_cycle_seconds = chord_cycle
+        
         # Reset game state
         self.current_chord_index = 0
         self.is_game_paused.set(False)
         
+        # Reset timers
+        self.last_chord_change = time.time()
+        self.last_position_change = time.time()
+        self.timer_start_time = time.time()
+        
         # Use the selected chord progression
         self.selected_chords = self.chord_progression.copy()
         
-        if not self.selected_chords:
-            return
-            
         # Show first chord immediately
         self._update_current_chord()
+        
+        # Show game controls and status
+        self.game_controls_frame.pack(side=tk.TOP, fill=tk.X, padx=3, pady=3)
+        self.game_status_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
         
         # Start timers
         self._start_timers()
@@ -633,11 +734,6 @@ class ControlPanel(tk.Frame):
         """Start the game timers"""
         # Stop any existing timers
         self._stop_timers()
-        
-        # Initialize timers
-        self.timer_start_time = time.time()
-        self.last_chord_change = time.time()
-        self.last_position_change = time.time()
         
         # Start the main timer loop
         self._check_timers()
@@ -652,20 +748,20 @@ class ControlPanel(tk.Frame):
         
         current_time = time.time()
         
-        # Check chord timer (15 seconds)
-        if current_time - self.last_chord_change >= 15:
+        # Check chord timer using custom cycle time
+        if current_time - self.last_chord_change >= self.chord_cycle_seconds:
             self._next_chord()
             self.last_chord_change = current_time
-            self.timer_start_time = current_time  # Reset timer start time
-            # Don't reset position timer on chord change
+            self.timer_start_time = current_time
         
-        # Check position timer (5 seconds) - only if enough time has passed
-        if current_time - self.last_position_change >= 5:
+        # Check position timer using custom cycle time
+        # Use a small buffer to account for timer precision
+        if current_time - self.last_position_change >= self.triad_cycle_seconds:
             self._next_position()
             self.last_position_change = current_time
         
-        # Continue checking regardless of whether timers fired
-        self.game_timer = self.after(100, self._check_timers)
+        # Continue checking with a shorter interval for more precise timing
+        self.game_timer = self.after(50, self._check_timers)
 
     def _update_timer_display(self):
         """Update the timer display"""
@@ -674,9 +770,11 @@ class ControlPanel(tk.Frame):
         
         # Calculate remaining time until next chord change
         elapsed = time.time() - self.timer_start_time
-        remaining = max(0, 15 - int(elapsed))  # 15 seconds total
-        minutes = remaining // 60
-        seconds = remaining % 60
+        remaining = max(0, self.chord_cycle_seconds - elapsed)
+        
+        # Convert to minutes and seconds, rounding down to nearest second
+        minutes = int(remaining // 60)
+        seconds = int(remaining % 60)
         
         # Update display
         self.timer_display.config(text=f"Time: {minutes:02d}:{seconds:02d}")
@@ -703,6 +801,11 @@ class ControlPanel(tk.Frame):
         if self.game_timer:
             self.after_cancel(self.game_timer)
             self.game_timer = None
+        
+        # Also cancel the position timer if it exists
+        if hasattr(self, 'position_timer') and self.position_timer:
+            self.after_cancel(self.position_timer)
+            self.position_timer = None
 
     def _toggle_game_pause(self):
         """Toggle game pause state"""
@@ -720,9 +823,16 @@ class ControlPanel(tk.Frame):
     def _stop_game(self):
         """Stop the game and return to normal mode"""
         self._stop_timers()
-        self.game_mode.set("normal")
-        self.game_controls_frame.pack_forget()
-        self.game_status_frame.pack_forget()
+        
+        # Reset game state
+        self.current_chord_index = 0
+        self.is_game_paused.set(False)
+        
+        # Reset button states
+        self.start_game_btn.config(state=tk.NORMAL if all(self.chord_progression) else tk.DISABLED)
+        self.pause_btn.config(text="Pause")
+        
+        # Clear the fretboard
         self.callback("clear", {})
         
     def _next_position(self):
@@ -735,9 +845,6 @@ class ControlPanel(tk.Frame):
         
         # Request a new random position from the callback
         self.callback("new_position", {"chord": current_chord})
-        
-        # Schedule next position change in 5 seconds
-        self.position_timer = self.after(5000, self._next_position)
         
     def _update_current_chord(self):
         """Update the current chord display with visual effect"""
