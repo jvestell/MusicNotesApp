@@ -167,7 +167,9 @@ class MainWindow:
     def _on_control_change(self, event_type: str, data: dict):
         """Handle control panel events"""
         if event_type == "chord_changed":
-            self.fretboard.display_chord(data["chord"])
+            # Check for visual effect
+            visual_effect = data.get("visual_effect")
+            self.fretboard.display_chord(data["chord"], visual_effect)
             self.visualizers["chord_builder"].update_chord(data["chord"])
         elif event_type == "scale_changed":
             self.fretboard.display_scale(data["scale"])
@@ -175,6 +177,9 @@ class MainWindow:
             self.fretboard.clear()
         elif event_type == "highlight_changed":
             self.fretboard.set_highlight_type(data["type"])
+        elif event_type == "new_position":
+            # Handle new random position request for game mode
+            self.fretboard.set_random_triad_position()
         
     def _setup_shortcuts(self):
         """Setup keyboard shortcuts"""

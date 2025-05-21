@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 from core.note_system import Note
 from core.chord_system import Chord
 from core.scale_system import Scale
+import math
 
 class FretboardCanvas(tk.Canvas):
     """Interactive fretboard visualization with cyberpunk styling"""
@@ -56,6 +57,10 @@ class FretboardCanvas(tk.Canvas):
         
         # Current highlight type
         self.current_highlight_type = ""
+        
+        # Game mode state
+        self.current_position = None  # Current triad position
+        self.explosion_animation = None  # Store explosion animation items
         
         # Set up the canvas
         self.bind("<Configure>", self._on_resize)
@@ -240,7 +245,7 @@ class FretboardCanvas(tk.Canvas):
         elif self.current_scale:
             self.display_scale(self.current_scale)
             
-    def display_chord(self, chord: Chord):
+    def display_chord(self, chord: Chord, visual_effect: str = None):
         """Display a chord on the fretboard"""
         self.clear()
         self.current_chord = chord
@@ -274,6 +279,10 @@ class FretboardCanvas(tk.Canvas):
         # Apply current highlight if any
         if self.current_highlight_type:
             self._apply_highlight(self.current_highlight_type)
+            
+        # Handle visual effects
+        if visual_effect == "explosion":
+            self._create_explosion_effect()
         
     def display_scale(self, scale: Scale):
         """Display a scale on the fretboard"""
@@ -505,3 +514,80 @@ class FretboardCanvas(tk.Canvas):
         self.current_highlight_type = highlight_type
         if self.current_chord or self.current_scale:
             self._apply_highlight(highlight_type)
+
+    def _create_explosion_effect(self):
+        """Create an explosion effect when changing chords"""
+        # Clear any existing explosion animation
+        if self.explosion_animation:
+            for item in self.explosion_animation:
+                self.delete(item)
+        self.explosion_animation = []
+        
+        # Get canvas dimensions
+        width = self.winfo_width()
+        height = self.winfo_height()
+        center_x = width / 2
+        center_y = height / 2
+        
+        # Create explosion particles
+        num_particles = 20
+        for i in range(num_particles):
+            # Random angle and distance
+            angle = (i / num_particles) * 360
+            distance = 50 + (i % 3) * 20  # Varying distances
+            
+            # Calculate end position
+            rad = math.radians(angle)
+            end_x = center_x + distance * math.cos(rad)
+            end_y = center_y + distance * math.sin(rad)
+            
+            # Create particle
+            particle = self.create_line(
+                center_x, center_y, end_x, end_y,
+                fill=self.colors["accent2"],
+                width=2
+            )
+            self.explosion_animation.append(particle)
+            
+            # Animate particle
+            self.after(50 * i, lambda p=particle: self.delete(p))
+            
+        # Clear explosion animation after all particles are gone
+        self.after(50 * num_particles, lambda: setattr(self, 'explosion_animation', None))
+        
+    def set_random_triad_position(self):
+        """Set a random position for the current chord's triad"""
+        if not self.current_chord:
+            return
+            
+        # Get all possible positions for the triad
+        triad = self.current_chord.get_triad()
+        triad_names = [note.name for note in triad]
+        
+        # Find all valid positions where the triad can be played within 4 frets
+        valid_positions = []
+        for start_fret in range(self.frets - 3):  # -3 to ensure we have 4 frets available
+            # Check if we can play the triad in this position
+            triad_notes = []
+            for string_idx in range(self.strings):
+                open_note = Note(self.tuning[string_idx])
+                for fret in range(start_fret, start_fret + 4):
+                    fretted_note = open_note.transpose(fret)
+                    if fretted_note.name in triad_names:
+                        triad_notes.append((string_idx, fret))
+                        if len(triad_notes) == 3:  # Found all triad notes
+                            valid_positions.append(triad_notes)
+                            break
+                if len(triad_notes) == 3:
+                    break
+                    
+        if valid_positions:
+            # Select a random position
+            import random
+            self.current_position = random.choice(valid_positions)
+            
+            # Update highlighted notes
+            self.highlighted_notes = self.current_position
+            
+            # Redraw with highlights
+            self._draw_notes()
