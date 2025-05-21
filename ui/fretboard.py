@@ -247,7 +247,10 @@ class FretboardCanvas(tk.Canvas):
             
     def display_chord(self, chord: Chord, visual_effect: str = None):
         """Display a chord on the fretboard"""
+        # Clear everything first
         self.clear()
+        
+        # Set new chord
         self.current_chord = chord
         self.current_scale = None
         
@@ -273,7 +276,7 @@ class FretboardCanvas(tk.Canvas):
                         self.displayed_notes.append((string_idx, fret, color))
                         break
         
-        # Draw the notes
+        # Draw all notes at original size first
         self._draw_notes()
         
         # Apply current highlight if any
@@ -484,24 +487,25 @@ class FretboardCanvas(tk.Canvas):
             # Get the note name
             note_name = self._get_note_name(string_idx, fret)
             
-            # Check if this note is highlighted
-            is_highlighted = (string_idx, fret) in self.highlighted_notes
+            # Check if this note is in the current highlighted triad position
+            is_current_triad = (string_idx, fret) in self.highlighted_notes
             
             # Draw note indicator
-            if is_highlighted:
-                # Make highlighted notes glow
+            if is_current_triad:
                 # Draw a larger background circle for glow effect
-                self.create_oval(x-12, y-12, x+12, y+12, 
+                self.create_oval(x-24, y-24, x+24, y+24, 
                                fill=color, outline="")
                                
-                # Draw actual note
-                self.create_oval(x-10, y-10, x+10, y+10, 
+                # Draw actual note with larger size
+                self.create_oval(x-20, y-20, x+20, y+20, 
                                fill=self.colors["bg_dark"], outline="")
                                
                 self.create_text(x, y, text=note_name, 
                                fill=self.colors["accent1"],
-                               font=("Orbitron", 9, "bold"))
+                               font=("Orbitron", 12, "bold"))
             else:
+                # All other notes (including previously highlighted triads) stay at original size
+                # Draw normal size note
                 self.create_oval(x-10, y-10, x+10, y+10, 
                                fill=color, outline="")
                                
@@ -560,6 +564,9 @@ class FretboardCanvas(tk.Canvas):
         if not self.current_chord:
             return
             
+        # Clear previous highlights
+        self.highlighted_notes = []
+            
         # Get all possible positions for the triad
         triad = self.current_chord.get_triad()
         triad_names = [note.name for note in triad]
@@ -586,8 +593,6 @@ class FretboardCanvas(tk.Canvas):
             import random
             self.current_position = random.choice(valid_positions)
             
-            # Update highlighted notes
+            # Update highlighted notes and redraw
             self.highlighted_notes = self.current_position
-            
-            # Redraw with highlights
             self._draw_notes()

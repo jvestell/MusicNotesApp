@@ -623,11 +623,11 @@ class ControlPanel(tk.Frame):
         if not self.selected_chords:
             return
             
+        # Show first chord immediately
+        self._update_current_chord()
+        
         # Start timers
         self._start_timers()
-        
-        # Show first chord
-        self._update_current_chord()
         
     def _start_timers(self):
         """Start the game timers"""
@@ -640,8 +640,8 @@ class ControlPanel(tk.Frame):
         # Start chord timer (15 seconds)
         self.game_timer = self.after(15000, self._next_chord)
         
-        # Start position timer (5 seconds)
-        self.position_timer = self.after(5000, self._next_position)
+        # Start position timer immediately (will be reset with each chord change)
+        self._next_position()
         
         # Update timer display
         self._update_timer_display()
@@ -687,8 +687,11 @@ class ControlPanel(tk.Frame):
         # Update display with visual effect
         self._update_current_chord()
         
-        # Restart timers
-        self._start_timers()
+        # Start new position timer immediately
+        self._next_position()
+        
+        # Restart chord timer
+        self.game_timer = self.after(15000, self._next_chord)
         
     def _next_position(self):
         """Move to a new random position for the current chord"""
@@ -701,7 +704,7 @@ class ControlPanel(tk.Frame):
         # Request a new random position from the callback
         self.callback("new_position", {"chord": current_chord})
         
-        # Restart position timer
+        # Schedule next position change in 5 seconds
         self.position_timer = self.after(5000, self._next_position)
         
     def _update_current_chord(self):
