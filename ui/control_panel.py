@@ -44,6 +44,9 @@ class ControlPanel(tk.Frame):
         # Initialize with empty state
         self.reset()
         
+        # Set up default Revolving Triads settings
+        self._setup_default_triad_settings()
+        
     def _create_widgets(self):
         """Create all UI widgets"""
         # Create frames for organizing controls
@@ -109,11 +112,11 @@ class ControlPanel(tk.Frame):
                 fg=self.colors["text_primary"],
                 bg=self.colors["bg_light"]).pack(side=tk.LEFT, padx=5)
         
-        self.triad_cycle_time = tk.StringVar(value="5")
+        self.triad_cycle_time = tk.StringVar(value="7")
         triad_spinbox = ttk.Spinbox(triad_frame,
                                    from_=1,
                                    to=60,
-                                   increment=0.5,  # Allow half-second increments
+                                   increment=0.5,
                                    width=5,
                                    textvariable=self.triad_cycle_time,
                                    state="readonly")
@@ -129,11 +132,11 @@ class ControlPanel(tk.Frame):
                 fg=self.colors["text_primary"],
                 bg=self.colors["bg_light"]).pack(side=tk.LEFT, padx=5)
         
-        self.chord_cycle_time = tk.StringVar(value="15")
+        self.chord_cycle_time = tk.StringVar(value="21")
         chord_spinbox = ttk.Spinbox(chord_frame,
                                    from_=5,
                                    to=120,
-                                   increment=0.5,  # Allow half-second increments
+                                   increment=0.5,
                                    width=5,
                                    textvariable=self.chord_cycle_time,
                                    state="readonly")
@@ -621,13 +624,19 @@ class ControlPanel(tk.Frame):
             self.game_settings_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
             self.progression_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
             
-            # Reset progression and disable start button
-            self.chord_progression = []
-            self.start_game_btn.config(state=tk.DISABLED)
-            for chord in self.progression_chords:
-                chord["note"].set("")
-                chord["type"].set("")
-                chord["button"].config(text="Add", bg=self.colors["bg_dark"])
+            # Set up default chord progression if it's empty
+            if not self.chord_progression:
+                self._setup_default_chord_progression()
+            else:
+                # Reset progression and disable start button
+                self.chord_progression = []
+                self.start_game_btn.config(state=tk.DISABLED)
+                for chord in self.progression_chords:
+                    chord["note"].set("")
+                    chord["type"].set("")
+                    chord["button"].config(text="Add", bg=self.colors["bg_dark"])
+                # Set up defaults after clearing
+                self._setup_default_chord_progression()
             
             # Hide game controls and status until game starts
             self.game_controls_frame.pack_forget()
@@ -642,6 +651,49 @@ class ControlPanel(tk.Frame):
             # Stop any running game
             self._stop_game()
             
+    def _setup_default_chord_progression(self):
+        """Set up the default chord progression (G major, C major, D major)"""
+        default_chords = [
+            ("G", "Major"),
+            ("C", "Major"),
+            ("D", "Major")
+        ]
+        
+        # Clear existing progression
+        self.chord_progression = []
+        
+        # Add each chord to the progression
+        for i, (note, chord_type) in enumerate(default_chords):
+            # Set the values in the UI
+            self.progression_chords[i]["note"].set(note)
+            self.progression_chords[i]["type"].set(chord_type)
+            
+            # Create and add the chord to the progression
+            try:
+                root_note = Note(note + "4")  # Default to octave 4
+                chord = self.theory.get_chord(root_note, chord_type)
+                self.chord_progression.append(chord)
+                
+                # Update button state
+                self.progression_chords[i]["button"].config(
+                    text="✓",
+                    bg=self.colors["accent1"]
+                )
+            except Exception as e:
+                logger.error(f"Error setting up default chord {note} {chord_type}: {e}")
+        
+        # Enable start button since we have all three chords
+        self.start_game_btn.config(state=tk.NORMAL)
+
+    def _setup_default_triad_settings(self):
+        """Set up default settings for the Revolving Triads game"""
+        # Set default cycle times
+        self.triad_cycle_time.set("7")
+        self.chord_cycle_time.set("21")
+        
+        # Note: We don't set up the chord progression here anymore
+        # It will be set up when the Revolving Triads mode is selected
+
     def _add_chord_to_progression(self, note_var, type_var, index):
         """Add a chord to the progression"""
         note = note_var.get()
