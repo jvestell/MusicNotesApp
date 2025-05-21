@@ -42,8 +42,8 @@ class FretboardCanvas(tk.Canvas):
         ]
         
         # Fretboard markers at specific positions
-        self.markers = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24]
-        self.double_markers = [12, 24]
+        self.markers = [6, 8, 10, 13]  # Single dots on frets 6, 8, 10, and 13
+        self.double_markers = [13]      # Double dots on 13th fret
         
         # Notes currently displayed on the fretboard
         self.displayed_notes = []
