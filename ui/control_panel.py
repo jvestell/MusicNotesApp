@@ -634,27 +634,76 @@ class ControlPanel(tk.Frame):
         # Stop any existing timers
         self._stop_timers()
         
-        # Store start time for timer calculation
+        # Initialize timers
         self.timer_start_time = time.time()
+        self.last_chord_change = time.time()
+        self.last_position_change = time.time()
         
-        # Start chord timer (15 seconds)
-        self.game_timer = self.after(15000, self._next_chord)
+        # Start the main timer loop
+        self._check_timers()
         
-        # Start position timer immediately (will be reset with each chord change)
-        self._next_position()
-        
-        # Update timer display
+        # Start the display timer
         self._update_timer_display()
+
+    def _check_timers(self):
+        """Check and update all game timers"""
+        if self.is_game_paused.get():
+            return
         
+        current_time = time.time()
+        
+        # Check chord timer (15 seconds)
+        if current_time - self.last_chord_change >= 15:
+            self._next_chord()
+            self.last_chord_change = current_time
+            self.timer_start_time = current_time  # Reset timer start time
+        
+        # Check position timer (5 seconds)
+        if current_time - self.last_position_change >= 5:
+            self._next_position()
+            self.last_position_change = current_time
+        
+        # Continue checking regardless of whether timers fired
+        self.game_timer = self.after(100, self._check_timers)
+
+    def _update_timer_display(self):
+        """Update the timer display"""
+        if self.is_game_paused.get():
+            return
+        
+        # Calculate remaining time until next chord change
+        elapsed = time.time() - self.timer_start_time
+        remaining = max(0, 15 - int(elapsed))  # 15 seconds total
+        minutes = remaining // 60
+        seconds = remaining % 60
+        
+        # Update display
+        self.timer_display.config(text=f"Time: {minutes:02d}:{seconds:02d}")
+        
+        # Always continue updating the display
+        self.after(100, self._update_timer_display)
+
+    def _next_chord(self):
+        """Move to the next chord in the sequence"""
+        if not self.selected_chords:
+            return
+            
+        # Move to next chord
+        self.current_chord_index = (self.current_chord_index + 1) % len(self.selected_chords)
+        
+        # Update display with visual effect
+        self._update_current_chord()
+        
+        # Reset position timer to ensure immediate position change
+        self.last_position_change = time.time()
+        self._next_position()
+
     def _stop_timers(self):
         """Stop all game timers"""
         if self.game_timer:
             self.after_cancel(self.game_timer)
             self.game_timer = None
-        if self.position_timer:
-            self.after_cancel(self.position_timer)
-            self.position_timer = None
-            
+
     def _toggle_game_pause(self):
         """Toggle game pause state"""
         self.is_game_paused.set(not self.is_game_paused.get())
@@ -675,23 +724,6 @@ class ControlPanel(tk.Frame):
         self.game_controls_frame.pack_forget()
         self.game_status_frame.pack_forget()
         self.callback("clear", {})
-        
-    def _next_chord(self):
-        """Move to the next chord in the sequence"""
-        if not self.selected_chords:
-            return
-            
-        # Move to next chord
-        self.current_chord_index = (self.current_chord_index + 1) % len(self.selected_chords)
-        
-        # Update display with visual effect
-        self._update_current_chord()
-        
-        # Start new position timer immediately
-        self._next_position()
-        
-        # Restart chord timer
-        self.game_timer = self.after(15000, self._next_chord)
         
     def _next_position(self):
         """Move to a new random position for the current chord"""
@@ -730,21 +762,3 @@ class ControlPanel(tk.Frame):
             "chord": current_chord,
             "visual_effect": "explosion"
         })
-        
-    def _update_timer_display(self):
-        """Update the timer display"""
-        if not self.game_timer or self.is_game_paused.get():
-            return
-            
-        # Calculate remaining time based on start time
-        elapsed = time.time() - self.timer_start_time
-        remaining = max(0, 15 - int(elapsed))  # 15 seconds total
-        minutes = remaining // 60
-        seconds = remaining % 60
-        
-        # Update display
-        self.timer_display.config(text=f"Time: {minutes:02d}:{seconds:02d}")
-        
-        # Schedule next update if still running
-        if remaining > 0:
-            self.after(1000, self._update_timer_display)

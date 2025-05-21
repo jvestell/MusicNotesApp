@@ -60,7 +60,7 @@ class FretboardCanvas(tk.Canvas):
         
         # Game mode state
         self.current_position = None  # Current triad position
-        self.explosion_animation = None  # Store explosion animation items
+        self.explosion_animation = []  # Initialize as empty list
         
         # Set up the canvas
         self.bind("<Configure>", self._on_resize)
@@ -466,6 +466,9 @@ class FretboardCanvas(tk.Canvas):
         
     def _draw_notes(self):
         """Draw the notes on the fretboard"""
+        # Clear all existing notes first
+        self.delete("note")  # Delete all note-related items
+        
         width = self.winfo_width()
         height = self.winfo_height()
         
@@ -490,28 +493,32 @@ class FretboardCanvas(tk.Canvas):
             # Check if this note is in the current highlighted triad position
             is_current_triad = (string_idx, fret) in self.highlighted_notes
             
-            # Draw note indicator
+            # Draw note indicator with tags for easy management
             if is_current_triad:
                 # Draw a larger background circle for glow effect
                 self.create_oval(x-24, y-24, x+24, y+24, 
-                               fill=color, outline="")
+                               fill=color, outline="",
+                               tags=("note", "highlight", "glow"))
                                
                 # Draw actual note with larger size
                 self.create_oval(x-20, y-20, x+20, y+20, 
-                               fill=self.colors["bg_dark"], outline="")
+                               fill=self.colors["bg_dark"], outline="",
+                               tags=("note", "highlight", "note_circle"))
                                
                 self.create_text(x, y, text=note_name, 
                                fill=self.colors["accent1"],
-                               font=("Orbitron", 12, "bold"))
+                               font=("Orbitron", 12, "bold"),
+                               tags=("note", "highlight", "note_text"))
             else:
-                # All other notes (including previously highlighted triads) stay at original size
-                # Draw normal size note
+                # All other notes stay at original size
                 self.create_oval(x-10, y-10, x+10, y+10, 
-                               fill=color, outline="")
+                               fill=color, outline="",
+                               tags=("note", "normal", "note_circle"))
                                
                 self.create_text(x, y, text=note_name, 
                                fill=self.colors["bg_dark"],
-                               font=("Orbitron", 9))
+                               font=("Orbitron", 9),
+                               tags=("note", "normal", "note_text"))
 
     def set_highlight_type(self, highlight_type: str):
         """Set the current highlight type and apply it"""
@@ -525,7 +532,7 @@ class FretboardCanvas(tk.Canvas):
         if self.explosion_animation:
             for item in self.explosion_animation:
                 self.delete(item)
-        self.explosion_animation = []
+        self.explosion_animation = []  # Reset to empty list
         
         # Get canvas dimensions
         width = self.winfo_width()
@@ -549,23 +556,22 @@ class FretboardCanvas(tk.Canvas):
             particle = self.create_line(
                 center_x, center_y, end_x, end_y,
                 fill=self.colors["accent2"],
-                width=2
+                width=2,
+                tags=("explosion",)
             )
-            self.explosion_animation.append(particle)
+            if particle:  # Only append if particle was created successfully
+                self.explosion_animation.append(particle)
             
             # Animate particle
             self.after(50 * i, lambda p=particle: self.delete(p))
-            
+        
         # Clear explosion animation after all particles are gone
-        self.after(50 * num_particles, lambda: setattr(self, 'explosion_animation', None))
+        self.after(50 * num_particles, lambda: setattr(self, 'explosion_animation', []))
         
     def set_random_triad_position(self):
         """Set a random position for the current chord's triad"""
         if not self.current_chord:
             return
-            
-        # Clear previous highlights
-        self.highlighted_notes = []
             
         # Get all possible positions for the triad
         triad = self.current_chord.get_triad()
@@ -583,7 +589,9 @@ class FretboardCanvas(tk.Canvas):
                     if fretted_note.name in triad_names:
                         triad_notes.append((string_idx, fret))
                         if len(triad_notes) == 3:  # Found all triad notes
-                            valid_positions.append(triad_notes)
+                            # Only add if the triad is physically playable (within reasonable hand span)
+                            if self._is_playable_triad(triad_notes):
+                                valid_positions.append(triad_notes)
                             break
                 if len(triad_notes) == 3:
                     break
@@ -591,8 +599,123 @@ class FretboardCanvas(tk.Canvas):
         if valid_positions:
             # Select a random position
             import random
-            self.current_position = random.choice(valid_positions)
+            new_position = random.choice(valid_positions)
             
-            # Update highlighted notes and redraw
-            self.highlighted_notes = self.current_position
-            self._draw_notes()
+            # Store old position for transition
+            old_position = self.current_position
+            
+            # Update current position
+            self.current_position = new_position
+            
+            # Update highlighted notes with the new position
+            self.highlighted_notes = new_position
+            
+            # Redraw with transition effect
+            self._transition_triad_position(old_position, new_position)
+
+    def _is_playable_triad(self, triad_notes):
+        """Check if a triad position is physically playable"""
+        if not triad_notes or len(triad_notes) != 3:
+            return False
+        
+        # Get the frets and strings
+        frets = [fret for _, fret in triad_notes]
+        strings = [string for string, _ in triad_notes]
+        
+        # Check if frets are within 4 frets of each other
+        if max(frets) - min(frets) > 4:
+            return False
+        
+        # Check if strings are adjacent or within reasonable span
+        if max(strings) - min(strings) > 3:
+            return False
+        
+        return True
+
+    def _transition_triad_position(self, old_position, new_position):
+        """Handle the visual transition between triad positions"""
+        # Clear any existing explosion animation
+        if self.explosion_animation:
+            for item in self.explosion_animation:
+                self.delete(item)
+        self.explosion_animation = []  # Reset to empty list
+        
+        # First, clear all highlighted notes
+        self.delete("highlight")
+        
+        # If there was an old position, fade it out
+        if old_position:
+            for string_idx, fret in old_position:
+                # Calculate position
+                width = self.winfo_width()
+                height = self.winfo_height()
+                string_spacing = height / (self.strings + 1)
+                fret_spacing = width / (self.frets + 1)
+                
+                y = (string_idx + 1) * string_spacing
+                x = (fret + 0.5) * fret_spacing if fret > 0 else fret_spacing / 2
+                
+                # Create fade out effect
+                note = self.create_oval(x-10, y-10, x+10, y+10,
+                                      fill=self.colors["accent1"],
+                                      outline="",
+                                      tags=("transition", "fade_out"))
+                if note:  # Only append if note was created successfully
+                    self.explosion_animation.append(note)
+                
+                # Fade out animation
+                for i in range(5):
+                    self.after(100 * i, lambda n=note, s=i: 
+                        self.itemconfig(n, fill=self.colors["bg_dark"]))
+                
+                # Delete the fade out note after animation
+                self.after(500, lambda n=note: self.delete(n))
+        
+        # Then, animate the new position
+        if new_position:
+            # Clear any existing transition effects
+            self.delete("transition")
+            
+            for string_idx, fret in new_position:
+                # Calculate position
+                width = self.winfo_width()
+                height = self.winfo_height()
+                string_spacing = height / (self.strings + 1)
+                fret_spacing = width / (self.frets + 1)
+                
+                y = (string_idx + 1) * string_spacing
+                x = (fret + 0.5) * fret_spacing if fret > 0 else fret_spacing / 2
+                
+                # Create grow effect
+                for i in range(5):
+                    size = 10 + (i * 3)  # Grow from 10 to 22
+                    self.after(50 * i, lambda x=x, y=y, s=size: 
+                        self._draw_highlighted_note(x, y, s))
+        
+        # Finally, redraw all notes to ensure proper state
+        self.after(250, self._draw_notes)
+
+    def _draw_highlighted_note(self, x, y, size):
+        """Draw a highlighted note with the specified size"""
+        # Delete any existing transition effects at this position
+        self.delete("transition")
+        
+        # Draw a larger background circle for glow effect
+        self.create_oval(x-size*1.2, y-size*1.2, x+size*1.2, y+size*1.2,
+                        fill=self.colors["accent1"], outline="",
+                        tags=("transition", "glow"))
+                        
+        # Draw actual note
+        self.create_oval(x-size, y-size, x+size, y+size,
+                        fill=self.colors["bg_dark"], outline="",
+                        tags=("transition", "note_circle"))
+                        
+        # Get the note name at this position
+        note_info = self._get_note_at_position(x, y)
+        if note_info:
+            string_idx, fret = note_info
+            note_name = self._get_note_name(string_idx, fret)
+            self.create_text(x, y, text=note_name,
+                            fill=self.colors["accent1"],
+                            font=("Orbitron", 12, "bold"),
+                            tags=("transition", "note_text"))
