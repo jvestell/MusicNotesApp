@@ -188,11 +188,18 @@ class ControlPanel(tk.Frame):
                                              lambda n=note_var, t=type_var, idx=i: self._add_chord_to_progression(n, t, idx))
             add_btn.pack(side=tk.LEFT, padx=2)
             
+            # Delete button (initially hidden)
+            delete_btn = self._create_neon_button(chord_frame, "×",
+                                               lambda idx=i: self._delete_chord_from_progression(idx))
+            delete_btn.pack(side=tk.LEFT, padx=2)
+            delete_btn.pack_forget()  # Initially hidden
+            
             # Store the variables
             self.progression_chords.append({
                 "note": note_var,
                 "type": type_var,
-                "button": add_btn
+                "button": add_btn,
+                "delete_button": delete_btn
             })
         
         # Initially hide progression selector
@@ -635,6 +642,7 @@ class ControlPanel(tk.Frame):
                     chord["note"].set("")
                     chord["type"].set("")
                     chord["button"].config(text="Add", bg=self.colors["bg_dark"])
+                    chord["delete_button"].pack_forget()
                 # Set up defaults after clearing
                 self._setup_default_chord_progression()
             
@@ -674,15 +682,17 @@ class ControlPanel(tk.Frame):
                 chord = self.theory.get_chord(root_note, chord_type)
                 self.chord_progression.append(chord)
                 
-                # Update button state
+                # Update button states
                 self.progression_chords[i]["button"].config(
                     text="✓",
                     bg=self.colors["accent1"]
                 )
+                # Show delete button
+                self.progression_chords[i]["delete_button"].pack(side=tk.LEFT, padx=2)
             except Exception as e:
                 logger.error(f"Error setting up default chord {note} {chord_type}: {e}")
         
-        # Enable start button since we have all three chords
+        # Enable start button since we have chords
         self.start_game_btn.config(state=tk.NORMAL)
 
     def _setup_default_triad_settings(self):
@@ -712,29 +722,53 @@ class ControlPanel(tk.Frame):
                 self.chord_progression.append(None)
             self.chord_progression[index] = chord
             
-            # Update button state
+            # Update button states
             self.progression_chords[index]["button"].config(
                 text="✓",
                 bg=self.colors["accent1"]
             )
+            # Show delete button
+            self.progression_chords[index]["delete_button"].pack(side=tk.LEFT, padx=2)
             
-            # Enable start button if we have all three chords
-            if all(self.chord_progression):
+            # Enable start button if we have at least one chord
+            if any(self.chord_progression):
                 self.start_game_btn.config(state=tk.NORMAL)
             else:
                 self.start_game_btn.config(state=tk.DISABLED)
                 
         except Exception as e:
             logger.error(f"Error adding chord to progression: {e}")
+
+    def _delete_chord_from_progression(self, index):
+        """Delete a chord from the progression"""
+        if index < len(self.chord_progression):
+            # Clear the chord
+            self.chord_progression[index] = None
             
+            # Reset UI elements
+            self.progression_chords[index]["note"].set("")
+            self.progression_chords[index]["type"].set("")
+            self.progression_chords[index]["button"].config(
+                text="Add",
+                bg=self.colors["bg_dark"]
+            )
+            # Hide delete button
+            self.progression_chords[index]["delete_button"].pack_forget()
+            
+            # Update start button state
+            if any(self.chord_progression):
+                self.start_game_btn.config(state=tk.NORMAL)
+            else:
+                self.start_game_btn.config(state=tk.DISABLED)
+
     def _start_game(self):
         """Start the revolving triads game"""
         # Validate chord progression
-        if not all(self.chord_progression):
+        if not any(self.chord_progression):
             # Show error message
             tk.messagebox.showwarning(
-                "Incomplete Progression",
-                "Please add all three chords to the progression before starting."
+                "No Chords Selected",
+                "Please add at least one chord to the progression before starting."
             )
             return
         
@@ -769,8 +803,8 @@ class ControlPanel(tk.Frame):
         self.last_position_change = time.time()
         self.timer_start_time = time.time()
         
-        # Use the selected chord progression
-        self.selected_chords = self.chord_progression.copy()
+        # Use only the selected chords (filter out None values)
+        self.selected_chords = [chord for chord in self.chord_progression if chord is not None]
         
         # Show first chord immediately
         self._update_current_chord()
@@ -881,7 +915,7 @@ class ControlPanel(tk.Frame):
         self.is_game_paused.set(False)
         
         # Reset button states
-        self.start_game_btn.config(state=tk.NORMAL if all(self.chord_progression) else tk.DISABLED)
+        self.start_game_btn.config(state=tk.NORMAL if any(self.chord_progression) else tk.DISABLED)
         self.pause_btn.config(text="Pause")
         
         # Clear the fretboard
