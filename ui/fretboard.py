@@ -498,7 +498,39 @@ class FretboardCanvas(tk.Canvas):
         string_spacing = height / (self.strings + 1)
         fret_spacing = width / (self.frets + 1)
         
-        # Draw all notes
+        # First draw displayed notes (chord/scale notes) if not in note placement mode
+        if not self.note_placement_mode:
+            for string_idx, fret, color in self.displayed_notes:
+                # Calculate position
+                y = (string_idx + 1) * string_spacing
+                if fret == 0:
+                    # Draw open string note
+                    x = fret_spacing / 2
+                else:
+                    # Draw fretted note
+                    x = (fret + 0.5) * fret_spacing  # Center between frets
+                
+                # Get the note name
+                note_name = self._get_note_name(string_idx, fret)
+                
+                # Draw note indicator with tags for easy management
+                self.create_oval(x-15, y-15, x+15, y+15, 
+                               fill=color, outline="",
+                               tags=("note", "note_circle"))
+                               
+                self.create_text(x, y, text=note_name, 
+                               fill=self.colors["bg_dark"],
+                               font=("Orbitron", 10, "bold"),
+                               tags=("note", "note_text"))
+                
+                # If this note is highlighted, add highlight effect
+                if (string_idx, fret) in self.highlighted_notes:
+                    # Draw a larger background circle for glow effect
+                    self.create_oval(x-18, y-18, x+18, y+18,
+                                   fill=self.colors["accent1"], outline="",
+                                   tags=("note", "highlight"))
+        
+        # Then draw placed notes (in note placement mode)
         for string_idx, fret, note, is_correct in self.placed_notes:
             # Calculate position
             y = (string_idx + 1) * string_spacing
@@ -906,6 +938,7 @@ class FretboardCanvas(tk.Canvas):
         """Enable or disable note placement mode"""
         self.note_placement_mode = enabled
         self.validation_mode = validation_mode
+        
         if not enabled:
             # Clean up any existing drag operation
             self.delete("drag")
@@ -916,12 +949,29 @@ class FretboardCanvas(tk.Canvas):
                 "note": None,
                 "is_dragging": False
             }
+            
+            # Store current display state
+            current_chord = self.current_chord
+            current_scale = self.current_scale
+            current_highlight = self.current_highlight_type
+            
             # Clear placed notes if not in validation mode
             if not self.validation_mode:
                 self.placed_notes = []
                 self.target_notes = []
-                self._draw_fretboard()
-                self._draw_notes()
+            
+            # Redraw the fretboard
+            self._draw_fretboard()
+            
+            # Restore display state
+            if current_chord:
+                self.display_chord(current_chord)
+            elif current_scale:
+                self.display_scale(current_scale)
+                
+            # Restore highlight if any
+            if current_highlight:
+                self._apply_highlight(current_highlight)
         else:
             # When enabling note placement mode, validate existing notes
             self._validate_placed_notes()
