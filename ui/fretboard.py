@@ -513,7 +513,12 @@ class FretboardCanvas(tk.Canvas):
             
             # Choose color based on validation
             if self.validation_mode:
-                color = self.colors["correct_note"] if is_correct else self.colors["incorrect_note"]
+                # In validation mode, only show correct placements
+                if is_correct:
+                    color = self.colors["correct_note"]
+                else:
+                    # Skip drawing incorrect notes
+                    continue
             else:
                 color = self.colors["accent1"]
             
@@ -773,51 +778,84 @@ class FretboardCanvas(tk.Canvas):
             
         # Get the note being dragged (if any)
         if hasattr(event, 'note'):
-            self.drag_data["note"] = event.note
-            self.drag_data["x"] = event.x
-            self.drag_data["y"] = event.y
+            # Clean up any existing drag indicator
+            self.delete("drag")
             
-            # Create a visual indicator for the dragged note
+            self.drag_data["note"] = event.note
+            # Store the cursor position relative to the canvas
+            self.drag_data["x"] = self.winfo_pointerx() - self.winfo_rootx()
+            self.drag_data["y"] = self.winfo_pointery() - self.winfo_rooty()
+            
+            # Create a visual indicator for the dragged note at the cursor position
             self.drag_data["item"] = self.create_oval(
-                event.x-15, event.y-15, event.x+15, event.y+15,
+                self.drag_data["x"]-15, self.drag_data["y"]-15,
+                self.drag_data["x"]+15, self.drag_data["y"]+15,
                 fill=self.colors["accent1"],
                 outline=self.colors["accent2"],
                 width=2,
                 tags=("drag",)
             )
             
-            # Add note text
+            # Add note text at the cursor position
             self.create_text(
-                event.x, event.y,
+                self.drag_data["x"], self.drag_data["y"],
                 text=str(self.drag_data["note"].name),
                 fill=self.colors["bg_dark"],
                 font=("Orbitron", 10, "bold"),
                 tags=("drag",)
             )
             
+            # Configure the canvas to track mouse motion
+            self.config(cursor="crosshair")
+            
     def _on_drag_motion(self, event):
         """Handle drag motion"""
         if self.drag_data["item"] is None:
             return
             
-        # Calculate the new position
-        dx = event.x - self.drag_data["x"]
-        dy = event.y - self.drag_data["y"]
+        # Get the cursor position relative to the canvas
+        x = self.winfo_pointerx() - self.winfo_rootx()
+        y = self.winfo_pointery() - self.winfo_rooty()
+            
+        # Clean up the old drag indicator before creating a new one
+        self.delete("drag")
         
-        # Move the drag indicator
-        self.move("drag", dx, dy)
+        # Create new indicator at current cursor position
+        self.drag_data["item"] = self.create_oval(
+            x-15, y-15, x+15, y+15,
+            fill=self.colors["accent1"],
+            outline=self.colors["accent2"],
+            width=2,
+            tags=("drag",)
+        )
+        
+        # Add note text at current cursor position
+        self.create_text(
+            x, y,
+            text=str(self.drag_data["note"].name),
+            fill=self.colors["bg_dark"],
+            font=("Orbitron", 10, "bold"),
+            tags=("drag",)
+        )
         
         # Update the stored position
-        self.drag_data["x"] = event.x
-        self.drag_data["y"] = event.y
+        self.drag_data["x"] = x
+        self.drag_data["y"] = y
         
     def _on_drag_release(self, event):
         """Handle the end of a drag operation"""
         if self.drag_data["item"] is None:
             return
             
+        # Reset cursor
+        self.config(cursor="")
+            
+        # Get the cursor position relative to the canvas
+        x = self.winfo_pointerx() - self.winfo_rootx()
+        y = self.winfo_pointery() - self.winfo_rooty()
+        
         # Get the position where the note was dropped
-        note_info = self._get_note_at_position(event.x, event.y)
+        note_info = self._get_note_at_position(x, y)
         
         if note_info and self.drag_data["note"]:
             string_idx, fret = note_info
@@ -825,21 +863,31 @@ class FretboardCanvas(tk.Canvas):
             # Get the actual note at this position
             actual_note = self._get_note_name(string_idx, fret)
             
-            # Check if this position already has a note
-            for i, (s, f, _, _) in enumerate(self.placed_notes):
-                if s == string_idx and f == fret:
-                    # Remove the existing note
-                    self.placed_notes.pop(i)
-                    break
-            
-            # Determine if the note is correct (in validation mode)
-            is_correct = True
+            # Validate the note placement
+            is_valid_placement = False
             if self.validation_mode and self.target_notes:
-                target_names = {note.name for note in self.target_notes}
-                is_correct = actual_note in target_names
-            
-            # Add the new note
-            self.placed_notes.append((string_idx, fret, self.drag_data["note"], is_correct))
+                # Check if the dragged note matches the actual note at this position
+                is_valid_placement = str(self.drag_data["note"].name) == actual_note
+                # Only place the note if it's a valid placement
+                if is_valid_placement:
+                    # Check if this position already has a note
+                    for i, (s, f, _, _) in enumerate(self.placed_notes):
+                        if s == string_idx and f == fret:
+                            # Remove the existing note
+                            self.placed_notes.pop(i)
+                            break
+                    # Add the new note
+                    self.placed_notes.append((string_idx, fret, self.drag_data["note"], True))
+            else:
+                # In non-validation mode, allow any placement
+                # Check if this position already has a note
+                for i, (s, f, _, _) in enumerate(self.placed_notes):
+                    if s == string_idx and f == fret:
+                        # Remove the existing note
+                        self.placed_notes.pop(i)
+                        break
+                # Add the new note
+                self.placed_notes.append((string_idx, fret, self.drag_data["note"], True))
             
             # Redraw the fretboard
             self._draw_notes()
@@ -862,6 +910,10 @@ class FretboardCanvas(tk.Canvas):
                 self.target_notes = []
                 self._draw_fretboard()
                 self._draw_notes()
+        else:
+            # When enabling note placement mode, validate existing notes
+            self._validate_placed_notes()
+            self._draw_notes()
 
     def set_target_notes(self, notes: List[Note]):
         """Set the target notes for validation"""
@@ -883,9 +935,10 @@ class FretboardCanvas(tk.Canvas):
         for string_idx, fret, note, _ in self.placed_notes:
             # Get the actual note at this position
             actual_note = self._get_note_name(string_idx, fret)
-            # Check if this note is in the target set
-            is_correct = actual_note in target_names
-            validated_notes.append((string_idx, fret, note, is_correct))
+            # Check if this note is in the target set AND matches the actual note at this position
+            is_correct = (actual_note in target_names) and (str(note.name) == actual_note)
+            if is_correct:  # Only keep correct notes
+                validated_notes.append((string_idx, fret, note, True))
         
         self.placed_notes = validated_notes
 

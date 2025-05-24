@@ -17,6 +17,14 @@ class NotePalette(tk.Frame):
         self.colors = colors
         self.on_drag_start = on_drag_start
         
+        # Track drag state
+        self.drag_data = {
+            "widget": None,
+            "note": None,
+            "x": 0,
+            "y": 0
+        }
+        
         # Create the UI components
         self._create_widgets()
         
@@ -71,8 +79,10 @@ class NotePalette(tk.Frame):
         button.bind("<Enter>", lambda e, b=button: self._on_button_hover(b, True))
         button.bind("<Leave>", lambda e, b=button: self._on_button_hover(b, False))
         
-        # Add drag start event
-        button.bind("<ButtonPress-1>", lambda e, n=note: self._on_drag_start(e, n))
+        # Add drag and drop events
+        button.bind("<ButtonPress-1>", lambda e, n=note: self._on_button_press(e, n))
+        button.bind("<B1-Motion>", self._on_button_drag)
+        button.bind("<ButtonRelease-1>", self._on_button_release)
         
         return button
         
@@ -83,10 +93,58 @@ class NotePalette(tk.Frame):
         else:
             button.config(bg=self.colors["bg_dark"])
             
-    def _on_drag_start(self, event, note: str):
-        """Handle the start of a drag operation"""
-        # Create a Note object
-        note_obj = Note(note + "4")  # Default to octave 4
+    def _on_button_press(self, event, note: str):
+        """Handle the start of a drag operation from a button"""
+        # Store the widget and note being dragged
+        self.drag_data["widget"] = event.widget
+        self.drag_data["note"] = Note(note + "4")  # Default to octave 4
+        self.drag_data["x"] = event.x_root
+        self.drag_data["y"] = event.y_root
         
-        # Call the callback with the note and event info
-        self.on_drag_start(note_obj, event) 
+        # Create a custom event for the fretboard
+        custom_event = type('CustomEvent', (), {
+            'x': event.x_root,
+            'y': event.y_root,
+            'note': self.drag_data["note"]
+        })
+        
+        # Start the drag operation on the fretboard
+        self.on_drag_start(self.drag_data["note"], custom_event)
+        
+    def _on_button_drag(self, event):
+        """Handle dragging of a note button"""
+        if self.drag_data["widget"] is None:
+            return
+            
+        # Create a custom event for the fretboard
+        custom_event = type('CustomEvent', (), {
+            'x': event.x_root,
+            'y': event.y_root,
+            'note': self.drag_data["note"]
+        })
+        
+        # Update the drag operation on the fretboard
+        self.on_drag_start(self.drag_data["note"], custom_event)
+        
+    def _on_button_release(self, event):
+        """Handle the end of a drag operation"""
+        if self.drag_data["widget"] is None:
+            return
+            
+        # Create a custom event for the fretboard
+        custom_event = type('CustomEvent', (), {
+            'x': event.x_root,
+            'y': event.y_root,
+            'note': self.drag_data["note"]
+        })
+        
+        # End the drag operation on the fretboard
+        self.on_drag_start(self.drag_data["note"], custom_event)
+        
+        # Reset drag data
+        self.drag_data = {
+            "widget": None,
+            "note": None,
+            "x": 0,
+            "y": 0
+        } 
