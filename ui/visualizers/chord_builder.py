@@ -204,13 +204,13 @@ class ChordBuilderVisualizer(tk.Frame):
         notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
         root_index = notes.index(chord.root.name)
 
-        # Add chord root note name (move further up to avoid overlap)
+        # Add chord root note name (moved further up to avoid overlap)
         self.chord_items.append(
             self.circle_canvas.create_text(
-                center_x, center_y - radius - 45,
+                center_x, center_y - radius - 65,  # Increased from -45 to -65
                 text=f"Root: {chord.root.name}",
                 fill=self.colors["accent2"],
-                font=("Orbitron", 12, "bold")
+                font=("Orbitron", 14, "bold")  # Increased font size from 12 to 14
             )
         )
         # Draw chord tones
