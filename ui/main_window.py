@@ -137,7 +137,8 @@ class MainWindow:
         # Create the note palette (initially hidden)
         self.note_palette = NotePalette(self.fretboard_frame,
                                       self.colors,
-                                      self._on_note_drag_start)
+                                      self._on_note_drag_start,
+                                      self._on_note_drag_end)
         self.note_palette.pack_forget()
         
         # Bottom section with control panel
@@ -208,6 +209,13 @@ class MainWindow:
         event.note = note
         # Trigger the drag start event on the fretboard
         self.fretboard._on_drag_start(event)
+        
+    def _on_note_drag_end(self, note, event):
+        """Handle the end of a note drag operation"""
+        # Create a custom event with the note data
+        event.note = note
+        # Trigger the drag end event on the fretboard
+        self.fretboard._on_drag_release(event)
         
     def _setup_shortcuts(self):
         """Setup keyboard shortcuts"""

@@ -9,13 +9,14 @@ from core.note_system import Note
 class NotePalette(tk.Frame):
     """Widget that displays draggable notes in a grid layout"""
     
-    def __init__(self, parent, colors: Dict, on_drag_start: Callable, **kwargs):
+    def __init__(self, parent, colors: Dict, on_drag_start: Callable, on_drag_end: Callable, **kwargs):
         """Initialize the note palette"""
         bg_color = colors["bg_med"]
         super().__init__(parent, bg=bg_color, **kwargs)
         
         self.colors = colors
         self.on_drag_start = on_drag_start
+        self.on_drag_end = on_drag_end
         
         # Track drag state
         self.drag_data = {
@@ -139,7 +140,7 @@ class NotePalette(tk.Frame):
         })
         
         # End the drag operation on the fretboard
-        self.on_drag_start(self.drag_data["note"], custom_event)
+        self.on_drag_end(self.drag_data["note"], custom_event)
         
         # Reset drag data
         self.drag_data = {
