@@ -513,22 +513,27 @@ class FretboardCanvas(tk.Canvas):
                 # Get the note name
                 note_name = self._get_note_name(string_idx, fret)
                 
-                # Draw note indicator with tags for easy management
-                self.create_oval(x-15, y-15, x+15, y+15, 
-                               fill=color, outline="",
-                               tags=("note", "note_circle"))
-                               
-                self.create_text(x, y, text=note_name, 
-                               fill=self.colors["bg_dark"],
-                               font=("Orbitron", 10, "bold"),
-                               tags=("note", "note_text"))
-                
-                # If this note is highlighted, add highlight effect
+                # If this note is highlighted, draw highlight effect first
                 if (string_idx, fret) in self.highlighted_notes:
                     # Draw a larger background circle for glow effect
                     self.create_oval(x-18, y-18, x+18, y+18,
                                    fill=self.colors["accent1"], outline="",
-                                   tags=("note", "highlight"))
+                                   tags=("note", "highlight_glow"))
+                    # Draw a slightly smaller circle for the highlight outline
+                    self.create_oval(x-17, y-17, x+17, y+17,
+                                   fill=self.colors["bg_dark"], outline="",
+                                   tags=("note", "highlight_bg"))
+                
+                # Draw the note circle
+                self.create_oval(x-15, y-15, x+15, y+15, 
+                               fill=color, outline="",
+                               tags=("note", "note_circle"))
+                               
+                # Draw the note text on top
+                self.create_text(x, y, text=note_name, 
+                               fill=self.colors["bg_dark"],
+                               font=("Orbitron", 10, "bold"),
+                               tags=("note", "note_text"))
         
         # Then draw placed notes (in note placement mode)
         for string_idx, fret, note, is_correct in self.placed_notes:
