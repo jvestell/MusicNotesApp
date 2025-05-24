@@ -75,7 +75,8 @@ class FretboardCanvas(tk.Canvas):
             "item": None,
             "x": 0,
             "y": 0,
-            "note": None
+            "note": None,
+            "is_dragging": False
         }
         
         # Set up the canvas
@@ -773,7 +774,7 @@ class FretboardCanvas(tk.Canvas):
     def _on_drag_start(self, event):
         """Handle the start of a drag operation"""
         # Check if we're in note placement mode
-        if not hasattr(self, 'note_placement_mode') or not self.note_placement_mode:
+        if not self.note_placement_mode:
             return
             
         # Get the note being dragged (if any)
@@ -781,8 +782,9 @@ class FretboardCanvas(tk.Canvas):
             # Clean up any existing drag indicator
             self.delete("drag")
             
+            # Store the note and start drag operation
             self.drag_data["note"] = event.note
-            # Store the cursor position relative to the canvas
+            self.drag_data["is_dragging"] = True
             self.drag_data["x"] = self.winfo_pointerx() - self.winfo_rootx()
             self.drag_data["y"] = self.winfo_pointery() - self.winfo_rooty()
             
@@ -810,7 +812,7 @@ class FretboardCanvas(tk.Canvas):
             
     def _on_drag_motion(self, event):
         """Handle drag motion"""
-        if self.drag_data["item"] is None:
+        if not self.drag_data["is_dragging"]:
             return
             
         # Get the cursor position relative to the canvas
@@ -844,11 +846,12 @@ class FretboardCanvas(tk.Canvas):
         
     def _on_drag_release(self, event):
         """Handle the end of a drag operation"""
-        if self.drag_data["item"] is None:
+        if not self.drag_data["is_dragging"]:
             return
             
-        # Reset cursor
+        # Reset cursor and drag state
         self.config(cursor="")
+        self.drag_data["is_dragging"] = False
             
         # Get the cursor position relative to the canvas
         x = self.winfo_pointerx() - self.winfo_rootx()
@@ -864,12 +867,9 @@ class FretboardCanvas(tk.Canvas):
             actual_note = self._get_note_name(string_idx, fret)
             
             # Validate the note placement
-            is_valid_placement = False
-            if self.validation_mode and self.target_notes:
-                # Check if the dragged note matches the actual note at this position
-                is_valid_placement = str(self.drag_data["note"].name) == actual_note
-                # Only place the note if it's a valid placement
-                if is_valid_placement:
+            if self.validation_mode:
+                # In validation mode, only allow placement if the dragged note matches the actual note
+                if str(self.drag_data["note"].name) == actual_note:
                     # Check if this position already has a note
                     for i, (s, f, _, _) in enumerate(self.placed_notes):
                         if s == string_idx and f == fret:
@@ -894,7 +894,13 @@ class FretboardCanvas(tk.Canvas):
             
         # Clean up the drag indicator
         self.delete("drag")
-        self.drag_data = {"item": None, "x": 0, "y": 0, "note": None}
+        self.drag_data = {
+            "item": None,
+            "x": 0,
+            "y": 0,
+            "note": None,
+            "is_dragging": False
+        }
 
     def set_note_placement_mode(self, enabled: bool, validation_mode: bool = False):
         """Enable or disable note placement mode"""
@@ -903,7 +909,13 @@ class FretboardCanvas(tk.Canvas):
         if not enabled:
             # Clean up any existing drag operation
             self.delete("drag")
-            self.drag_data = {"item": None, "x": 0, "y": 0, "note": None}
+            self.drag_data = {
+                "item": None,
+                "x": 0,
+                "y": 0,
+                "note": None,
+                "is_dragging": False
+            }
             # Clear placed notes if not in validation mode
             if not self.validation_mode:
                 self.placed_notes = []
