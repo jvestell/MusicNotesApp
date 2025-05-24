@@ -10,11 +10,15 @@ from typing import Dict, List, Optional
 
 from ui.fretboard import FretboardCanvas
 from ui.control_panel import ControlPanel
+from ui.note_palette import NotePalette
 from ui.visualizers.chord_builder import ChordBuilderVisualizer
 from ui.visualizers.scale_chord import ScaleChordVisualizer
 from ui.visualizers.ear_trainer import EarTrainerVisualizer
 from utils.config_manager import ConfigManager
 from core.music_theory import MusicTheory
+from core.note_system import Note
+from core.chord_system import Chord
+from core.scale_system import Scale
 
 class MainWindow:
     """Main application window with cyberpunk theme"""
@@ -120,7 +124,7 @@ class MainWindow:
         self.main_frame = tk.Frame(self.root, bg=self.colors["bg_dark"])
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Top section with fretboard
+        # Top section with fretboard and note palette
         self.fretboard_frame = tk.Frame(self.main_frame, bg=self.colors["bg_dark"])
         self.fretboard_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
@@ -128,7 +132,13 @@ class MainWindow:
         self.fretboard = FretboardCanvas(self.fretboard_frame, 
                                         bg=self.colors["fretboard"],
                                         color_scheme=self.colors)
-        self.fretboard.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.fretboard.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create the note palette (initially hidden)
+        self.note_palette = NotePalette(self.fretboard_frame,
+                                      self.colors,
+                                      self._on_note_drag_start)
+        self.note_palette.pack_forget()
         
         # Bottom section with control panel
         self.control_panel = ControlPanel(self.main_frame, 
@@ -180,6 +190,24 @@ class MainWindow:
         elif event_type == "new_position":
             # Handle new random position request for game mode
             self.fretboard.set_random_triad_position()
+        elif event_type == "note_placement_mode":
+            # Handle note placement mode toggle
+            if data["enabled"]:
+                self.note_palette.pack(side=tk.RIGHT, fill=tk.Y, padx=5, pady=5)
+                self.fretboard.set_note_placement_mode(True)
+            else:
+                self.note_palette.pack_forget()
+                self.fretboard.set_note_placement_mode(False)
+        elif event_type == "clear_placed_notes":
+            # Clear all manually placed notes
+            self.fretboard.clear_placed_notes()
+        
+    def _on_note_drag_start(self, note, event):
+        """Handle the start of a note drag operation"""
+        # Create a custom event with the note data
+        event.note = note
+        # Trigger the drag start event on the fretboard
+        self.fretboard._on_drag_start(event)
         
     def _setup_shortcuts(self):
         """Setup keyboard shortcuts"""

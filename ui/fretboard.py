@@ -23,7 +23,9 @@ class FretboardCanvas(tk.Canvas):
             "accent1": "#00ff99",
             "accent2": "#ff3366",
             "grid_line": "#303040",
-            "fretboard": "#2a2a35"
+            "fretboard": "#2a2a35",
+            "correct_note": "#00ff99",  # Green for correct notes
+            "incorrect_note": "#ff3366"  # Red for incorrect notes
         }
         
         # Fretboard configuration
@@ -62,12 +64,31 @@ class FretboardCanvas(tk.Canvas):
         self.current_position = None  # Current triad position
         self.explosion_animation = []  # Initialize as empty list
         
+        # Note placement state
+        self.note_placement_mode = False
+        self.placed_notes = []  # List of (string_idx, fret, note, is_correct) tuples
+        self.target_notes = []  # List of notes that should be placed
+        self.validation_mode = False  # Whether to validate placed notes
+        
+        # Drag and drop state
+        self.drag_data = {
+            "item": None,
+            "x": 0,
+            "y": 0,
+            "note": None
+        }
+        
         # Set up the canvas
         self.bind("<Configure>", self._on_resize)
         
         # Bind mouse events
         self.bind("<Button-1>", self._on_click)
         self.bind("<Motion>", self._on_hover)
+        
+        # Bind drag and drop events
+        self.bind("<ButtonPress-1>", self._on_drag_start)
+        self.bind("<B1-Motion>", self._on_drag_motion)
+        self.bind("<ButtonRelease-1>", self._on_drag_release)
         
         # Initial draw
         self._draw_fretboard()
@@ -477,7 +498,7 @@ class FretboardCanvas(tk.Canvas):
         fret_spacing = width / (self.frets + 1)
         
         # Draw all notes
-        for string_idx, fret, color in self.displayed_notes:
+        for string_idx, fret, note, is_correct in self.placed_notes:
             # Calculate position
             y = (string_idx + 1) * string_spacing
             if fret == 0:
@@ -490,35 +511,21 @@ class FretboardCanvas(tk.Canvas):
             # Get the note name
             note_name = self._get_note_name(string_idx, fret)
             
-            # Check if this note is in the current highlighted triad position
-            is_current_triad = (string_idx, fret) in self.highlighted_notes
+            # Choose color based on validation
+            if self.validation_mode:
+                color = self.colors["correct_note"] if is_correct else self.colors["incorrect_note"]
+            else:
+                color = self.colors["accent1"]
             
             # Draw note indicator with tags for easy management
-            if is_current_triad:
-                # Draw a larger background circle for glow effect
-                self.create_oval(x-24, y-24, x+24, y+24, 
-                               fill=color, outline="",
-                               tags=("note", "highlight", "glow"))
-                               
-                # Draw actual note with larger size
-                self.create_oval(x-20, y-20, x+20, y+20, 
-                               fill=self.colors["bg_dark"], outline="",
-                               tags=("note", "highlight", "note_circle"))
-                               
-                self.create_text(x, y, text=note_name, 
-                               fill=self.colors["accent1"],
-                               font=("Orbitron", 12, "bold"),
-                               tags=("note", "highlight", "note_text"))
-            else:
-                # All other notes stay at original size
-                self.create_oval(x-10, y-10, x+10, y+10, 
-                               fill=color, outline="",
-                               tags=("note", "normal", "note_circle"))
-                               
-                self.create_text(x, y, text=note_name, 
-                               fill=self.colors["bg_dark"],
-                               font=("Orbitron", 9),
-                               tags=("note", "normal", "note_text"))
+            self.create_oval(x-15, y-15, x+15, y+15, 
+                           fill=color, outline="",
+                           tags=("note", "note_circle"))
+                           
+            self.create_text(x, y, text=note_name, 
+                           fill=self.colors["bg_dark"],
+                           font=("Orbitron", 10, "bold"),
+                           tags=("note", "note_text"))
 
     def set_highlight_type(self, highlight_type: str):
         """Set the current highlight type and apply it"""
@@ -757,3 +764,142 @@ class FretboardCanvas(tk.Canvas):
                             fill=self.colors["accent1"],
                             font=("Orbitron", 12, "bold"),
                             tags=("transition", "note_text"))
+
+    def _on_drag_start(self, event):
+        """Handle the start of a drag operation"""
+        # Check if we're in note placement mode
+        if not hasattr(self, 'note_placement_mode') or not self.note_placement_mode:
+            return
+            
+        # Get the note being dragged (if any)
+        if hasattr(event, 'note'):
+            self.drag_data["note"] = event.note
+            self.drag_data["x"] = event.x
+            self.drag_data["y"] = event.y
+            
+            # Create a visual indicator for the dragged note
+            self.drag_data["item"] = self.create_oval(
+                event.x-15, event.y-15, event.x+15, event.y+15,
+                fill=self.colors["accent1"],
+                outline=self.colors["accent2"],
+                width=2,
+                tags=("drag",)
+            )
+            
+            # Add note text
+            self.create_text(
+                event.x, event.y,
+                text=str(self.drag_data["note"].name),
+                fill=self.colors["bg_dark"],
+                font=("Orbitron", 10, "bold"),
+                tags=("drag",)
+            )
+            
+    def _on_drag_motion(self, event):
+        """Handle drag motion"""
+        if self.drag_data["item"] is None:
+            return
+            
+        # Calculate the new position
+        dx = event.x - self.drag_data["x"]
+        dy = event.y - self.drag_data["y"]
+        
+        # Move the drag indicator
+        self.move("drag", dx, dy)
+        
+        # Update the stored position
+        self.drag_data["x"] = event.x
+        self.drag_data["y"] = event.y
+        
+    def _on_drag_release(self, event):
+        """Handle the end of a drag operation"""
+        if self.drag_data["item"] is None:
+            return
+            
+        # Get the position where the note was dropped
+        note_info = self._get_note_at_position(event.x, event.y)
+        
+        if note_info and self.drag_data["note"]:
+            string_idx, fret = note_info
+            
+            # Get the actual note at this position
+            actual_note = self._get_note_name(string_idx, fret)
+            
+            # Check if this position already has a note
+            for i, (s, f, _, _) in enumerate(self.placed_notes):
+                if s == string_idx and f == fret:
+                    # Remove the existing note
+                    self.placed_notes.pop(i)
+                    break
+            
+            # Determine if the note is correct (in validation mode)
+            is_correct = True
+            if self.validation_mode and self.target_notes:
+                target_names = {note.name for note in self.target_notes}
+                is_correct = actual_note in target_names
+            
+            # Add the new note
+            self.placed_notes.append((string_idx, fret, self.drag_data["note"], is_correct))
+            
+            # Redraw the fretboard
+            self._draw_notes()
+            
+        # Clean up the drag indicator
+        self.delete("drag")
+        self.drag_data = {"item": None, "x": 0, "y": 0, "note": None}
+
+    def set_note_placement_mode(self, enabled: bool, validation_mode: bool = False):
+        """Enable or disable note placement mode"""
+        self.note_placement_mode = enabled
+        self.validation_mode = validation_mode
+        if not enabled:
+            # Clean up any existing drag operation
+            self.delete("drag")
+            self.drag_data = {"item": None, "x": 0, "y": 0, "note": None}
+            # Clear placed notes if not in validation mode
+            if not self.validation_mode:
+                self.placed_notes = []
+                self.target_notes = []
+                self._draw_fretboard()
+                self._draw_notes()
+
+    def set_target_notes(self, notes: List[Note]):
+        """Set the target notes for validation"""
+        self.target_notes = notes
+        # Revalidate all placed notes
+        self._validate_placed_notes()
+        self._draw_notes()
+
+    def _validate_placed_notes(self):
+        """Validate all placed notes against target notes"""
+        if not self.validation_mode or not self.target_notes:
+            return
+
+        # Convert target notes to a set of note names for easy lookup
+        target_names = {note.name for note in self.target_notes}
+        
+        # Update validation status for each placed note
+        validated_notes = []
+        for string_idx, fret, note, _ in self.placed_notes:
+            # Get the actual note at this position
+            actual_note = self._get_note_name(string_idx, fret)
+            # Check if this note is in the target set
+            is_correct = actual_note in target_names
+            validated_notes.append((string_idx, fret, note, is_correct))
+        
+        self.placed_notes = validated_notes
+
+    def clear_placed_notes(self):
+        """Clear all manually placed notes"""
+        self.placed_notes = []
+        self._draw_fretboard()
+        self._draw_notes()
+
+    def get_placement_score(self) -> Tuple[int, int]:
+        """Get the current score (correct notes, total notes)"""
+        if not self.validation_mode or not self.target_notes:
+            return 0, 0
+            
+        correct_count = sum(1 for _, _, _, is_correct in self.placed_notes if is_correct)
+        total_count = len(self.placed_notes)
+        return correct_count, total_count

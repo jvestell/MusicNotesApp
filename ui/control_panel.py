@@ -10,6 +10,8 @@ import time
 
 from core.music_theory import MusicTheory
 from core.note_system import Note
+from core.chord_system import Chord
+from core.scale_system import Scale
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -37,6 +39,9 @@ class ControlPanel(tk.Frame):
         self.current_chord_index = 0
         self.selected_chords = []
         self.chord_progression = []  # Store the selected chord progression
+        
+        # Note placement mode state
+        self.note_placement_mode = tk.BooleanVar(value=False)
         
         # Create the UI components
         self._create_widgets()
@@ -87,6 +92,7 @@ class ControlPanel(tk.Frame):
         # Game mode buttons
         modes = [
             ("Normal", "normal"),
+            ("Note Placement", "note_placement"),
             ("Revolving Triads", "revolving_triads")
         ]
         
@@ -247,6 +253,22 @@ class ControlPanel(tk.Frame):
         
         # Initially hide game status
         self.game_status_frame.pack_forget()
+        
+        # Note placement controls (initially hidden)
+        self.note_placement_frame = tk.LabelFrame(self.left_frame,
+                                                text="NOTE PLACEMENT",
+                                                font=("Orbitron", 10, "bold"),
+                                                fg=self.colors["text_secondary"],
+                                                bg=self.colors["bg_light"])
+        
+        # Clear notes button
+        self.clear_notes_btn = self._create_neon_button(self.note_placement_frame,
+                                                      "Clear Notes",
+                                                      self._clear_placed_notes)
+        self.clear_notes_btn.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        
+        # Initially hide note placement controls
+        self.note_placement_frame.pack_forget()
         
     def _create_note_selector(self):
         """Create the root note selector"""
@@ -626,7 +648,23 @@ class ControlPanel(tk.Frame):
         """Handle game mode selection"""
         self.game_mode.set(mode)
         
-        if mode == "revolving_triads":
+        # Hide all game-related frames first
+        self.game_settings_frame.pack_forget()
+        self.progression_frame.pack_forget()
+        self.game_controls_frame.pack_forget()
+        self.game_status_frame.pack_forget()
+        self.note_placement_frame.pack_forget()
+        
+        # Stop any running game
+        self._stop_game()
+        
+        if mode == "note_placement":
+            # Show note placement controls
+            self.note_placement_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+            # Enable note placement mode
+            self.note_placement_mode.set(True)
+            self.callback("note_placement_mode", {"enabled": True})
+        elif mode == "revolving_triads":
             # Show game settings and progression selector
             self.game_settings_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
             self.progression_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
@@ -646,18 +684,13 @@ class ControlPanel(tk.Frame):
                 # Set up defaults after clearing
                 self._setup_default_chord_progression()
             
-            # Hide game controls and status until game starts
-            self.game_controls_frame.pack_forget()
-            self.game_status_frame.pack_forget()
-        else:
-            # Hide all game-related frames
-            self.game_settings_frame.pack_forget()
-            self.progression_frame.pack_forget()
-            self.game_controls_frame.pack_forget()
-            self.game_status_frame.pack_forget()
-            
-            # Stop any running game
-            self._stop_game()
+            # Disable note placement mode
+            self.note_placement_mode.set(False)
+            self.callback("note_placement_mode", {"enabled": False})
+        else:  # normal mode
+            # Disable note placement mode
+            self.note_placement_mode.set(False)
+            self.callback("note_placement_mode", {"enabled": False})
             
     def _setup_default_chord_progression(self):
         """Set up the default chord progression (G major, C major, D major)"""
@@ -955,3 +988,7 @@ class ControlPanel(tk.Frame):
             "chord": current_chord,
             "visual_effect": "explosion"
         })
+
+    def _clear_placed_notes(self):
+        """Clear all manually placed notes"""
+        self.callback("clear_placed_notes", {})
