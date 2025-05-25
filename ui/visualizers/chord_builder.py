@@ -330,6 +330,11 @@ class ChordBuilderVisualizer(tk.Frame):
                 "Formula: Root - Minor 3rd (3) - Perfect 5th (7) - Minor 7th (10)\n\n"
                 "Combines the darkness of minor with the softness of a 7th."
             ),
+            "dim7": (
+                "Diminished 7th chords have a tense, mysterious, and unstable quality.\n\n"
+                "Formula: Root - Minor 3rd (3) - Diminished 5th (6) - Diminished 7th (9)\n\n"
+                "The stacked minor thirds create a symmetrical, ambiguous sound that can resolve to multiple keys."
+            ),
             "sus2": (
                 "Sus2 chords have an open, ambiguous quality.\n\n"
                 "Formula: Root - Major 2nd (2) - Perfect 5th (7)\n\n"

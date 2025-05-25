@@ -184,7 +184,7 @@ class ControlPanel(tk.Frame):
             type_var = tk.StringVar(value="")
             type_menu = ttk.Combobox(chord_frame,
                                    textvariable=type_var,
-                                   values=["Major", "Minor", "7", "maj7", "m7", "sus2", "sus4", "aug", "dim", "9"],
+                                   values=["Major", "Minor", "7", "maj7", "m7", "sus2", "sus4", "aug", "dim", "dim7", "9"],
                                    state="readonly",
                                    width=6)
             type_menu.pack(side=tk.LEFT, padx=2)
@@ -313,7 +313,7 @@ class ControlPanel(tk.Frame):
         
         chord_types = [
             "Major", "Minor", "7", "maj7", "m7", 
-            "sus2", "sus4", "aug", "dim", "9"
+            "sus2", "sus4", "aug", "dim", "dim7", "9"
         ]
         
         # Create a grid of chord buttons

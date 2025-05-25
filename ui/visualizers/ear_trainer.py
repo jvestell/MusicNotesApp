@@ -249,7 +249,7 @@ class EarTrainerVisualizer(tk.Frame):
     def _generate_chord_type_exercise(self):
         """Generate a chord type recognition exercise"""
         # Possible chord types to use
-        chord_types = ["Major", "Minor", "7", "maj7", "m7", "sus4", "aug", "dim"]
+        chord_types = ["Major", "Minor", "7", "maj7", "m7", "sus4", "aug", "dim", "dim7"]
         
         # Possible root notes
         root_notes = ["C", "D", "E", "F", "G", "A", "B"]
@@ -474,7 +474,8 @@ class EarTrainerVisualizer(tk.Frame):
                 "• Minor 7th chords sound smooth and contemplative\n"
                 "• Sus4 chords have an unresolved, floating quality\n"
                 "• Augmented chords sound tense and dreamlike\n"
-                "• Diminished chords sound unstable and spooky\n\n"
+                "• Diminished chords sound unstable and spooky\n"
+                "• Diminished 7th chords have a tense, mysterious quality with stacked minor thirds\n\n"
                 "Listen carefully to the character of each chord. With practice, "
                 "you'll be able to instantly recognize chord types by ear."
             )
