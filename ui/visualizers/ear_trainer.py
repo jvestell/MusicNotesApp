@@ -249,7 +249,11 @@ class EarTrainerVisualizer(tk.Frame):
     def _generate_chord_type_exercise(self):
         """Generate a chord type recognition exercise"""
         # Possible chord types to use
-        chord_types = ["Major", "Minor", "7", "maj7", "m7", "sus4", "aug", "dim", "dim7"]
+        chord_types = [
+            "Major", "Minor", "7", "maj7", "m7", "sus2", "sus4", 
+            "aug", "dim", "dim7", "9", "maj9", "m9", "6", "m6", 
+            "add9", "madd9", "7sus4", "7#5", "7b5", "m7b5", "13", "m13"
+        ]
         
         # Possible root notes
         root_notes = ["C", "D", "E", "F", "G", "A", "B"]
@@ -472,10 +476,18 @@ class EarTrainerVisualizer(tk.Frame):
                 "• 7th chords have a bluesy tension\n"
                 "• Major 7th chords have a jazzy, lush quality\n"
                 "• Minor 7th chords sound smooth and contemplative\n"
-                "• Sus4 chords have an unresolved, floating quality\n"
+                "• Sus2 chords have an open, ambiguous quality\n"
+                "• Sus4 chords have a floating, unresolved quality\n"
                 "• Augmented chords sound tense and dreamlike\n"
                 "• Diminished chords sound unstable and spooky\n"
-                "• Diminished 7th chords have a tense, mysterious quality with stacked minor thirds\n\n"
+                "• Diminished 7th chords have a tense, mysterious quality\n"
+                "• 9th chords add rich color to 7th chords\n"
+                "• 6th chords have a sweet, nostalgic quality\n"
+                "• Add9 chords add color without 7th complexity\n"
+                "• 7sus4 combines floating sus4 with 7th tension\n"
+                "• 7#5 and 7b5 add tension to dominant 7ths\n"
+                "• Half-diminished (m7b5) has a tense, jazzy quality\n"
+                "• 13th chords have a rich, complex jazz quality\n\n"
                 "Listen carefully to the character of each chord. With practice, "
                 "you'll be able to instantly recognize chord types by ear."
             )

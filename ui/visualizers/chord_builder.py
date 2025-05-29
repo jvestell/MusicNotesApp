@@ -359,6 +359,66 @@ class ChordBuilderVisualizer(tk.Frame):
                 "Dominant 9th chords have a rich, colorful, jazzy quality.\n\n"
                 "Formula: Root - Major 3rd (4) - Perfect 5th (7) - Minor 7th (10) - Major 9th (14)\n\n"
                 "The added 9th tone adds color to the dominant 7th chord structure."
+            ),
+            "maj9": (
+                "Major 9th chords have a lush, sophisticated jazz quality.\n\n"
+                "Formula: Root - Major 3rd (4) - Perfect 5th (7) - Major 7th (11) - Major 9th (14)\n\n"
+                "Combines the richness of major 7th with the color of the 9th."
+            ),
+            "m9": (
+                "Minor 9th chords have a dark, complex jazz quality.\n\n"
+                "Formula: Root - Minor 3rd (3) - Perfect 5th (7) - Minor 7th (10) - Major 9th (14)\n\n"
+                "Adds the 9th's color to the minor 7th's contemplative mood."
+            ),
+            "6": (
+                "Major 6th chords have a sweet, nostalgic quality.\n\n"
+                "Formula: Root - Major 3rd (4) - Perfect 5th (7) - Major 6th (9)\n\n"
+                "The 6th adds a gentle sweetness to the major triad."
+            ),
+            "m6": (
+                "Minor 6th chords have a bittersweet, jazzy quality.\n\n"
+                "Formula: Root - Minor 3rd (3) - Perfect 5th (7) - Major 6th (9)\n\n"
+                "The 6th adds a touch of sweetness to the minor triad."
+            ),
+            "add9": (
+                "Add9 chords have a bright, open quality.\n\n"
+                "Formula: Root - Major 3rd (4) - Perfect 5th (7) - Major 9th (14)\n\n"
+                "The 9th adds color without the complexity of a 7th."
+            ),
+            "madd9": (
+                "Minor add9 chords have a gentle, melancholic quality.\n\n"
+                "Formula: Root - Minor 3rd (3) - Perfect 5th (7) - Major 9th (14)\n\n"
+                "The 9th adds a touch of sweetness to the minor triad."
+            ),
+            "7sus4": (
+                "7sus4 chords have a suspended, unresolved quality.\n\n"
+                "Formula: Root - Perfect 4th (5) - Perfect 5th (7) - Minor 7th (10)\n\n"
+                "Combines the floating sus4 sound with the tension of a 7th."
+            ),
+            "7#5": (
+                "7#5 (augmented 7th) chords have a tense, jazzy quality.\n\n"
+                "Formula: Root - Major 3rd (4) - Augmented 5th (8) - Minor 7th (10)\n\n"
+                "The raised 5th adds tension to the dominant 7th structure."
+            ),
+            "7b5": (
+                "7b5 chords have a tense, unstable quality.\n\n"
+                "Formula: Root - Major 3rd (4) - Diminished 5th (6) - Minor 7th (10)\n\n"
+                "The lowered 5th creates tension in the dominant 7th structure."
+            ),
+            "m7b5": (
+                "Half-diminished 7th chords have a tense, jazzy quality.\n\n"
+                "Formula: Root - Minor 3rd (3) - Diminished 5th (6) - Minor 7th (10)\n\n"
+                "Combines the tension of diminished 5th with the softness of minor 7th."
+            ),
+            "13": (
+                "Dominant 13th chords have a rich, complex jazz quality.\n\n"
+                "Formula: Root - Major 3rd (4) - Perfect 5th (7) - Minor 7th (10) - Major 9th (14) - Major 13th (21)\n\n"
+                "The 13th adds a lush, colorful extension to the dominant 7th."
+            ),
+            "m13": (
+                "Minor 13th chords have a dark, complex jazz quality.\n\n"
+                "Formula: Root - Minor 3rd (3) - Perfect 5th (7) - Minor 7th (10) - Major 9th (14) - Major 13th (21)\n\n"
+                "The 13th adds color and complexity to the minor 7th structure."
             )
         }
         

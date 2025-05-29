@@ -184,7 +184,9 @@ class ControlPanel(tk.Frame):
             type_var = tk.StringVar(value="")
             type_menu = ttk.Combobox(chord_frame,
                                    textvariable=type_var,
-                                   values=["Major", "Minor", "7", "maj7", "m7", "sus2", "sus4", "aug", "dim", "dim7", "9"],
+                                   values=["Major", "Minor", "7", "maj7", "m7", "sus2", "sus4", 
+                                         "aug", "dim", "dim7", "9", "maj9", "m9", "6", "m6", 
+                                         "add9", "madd9", "7sus4", "7#5", "7b5", "m7b5", "13", "m13"],
                                    state="readonly",
                                    width=6)
             type_menu.pack(side=tk.LEFT, padx=2)
@@ -313,13 +315,15 @@ class ControlPanel(tk.Frame):
         
         chord_types = [
             "Major", "Minor", "7", "maj7", "m7", 
-            "sus2", "sus4", "aug", "dim", "dim7", "9"
+            "sus2", "sus4", "aug", "dim", "dim7", "9",
+            "maj9", "m9", "6", "m6", "add9", "madd9",
+            "7sus4", "7#5", "7b5", "m7b5", "13", "m13"
         ]
         
         # Create a grid of chord buttons
         for i, chord_type in enumerate(chord_types):
-            row = i % 5
-            col = i // 5
+            row = i % 6  # Changed from 5 to 6 to fit more buttons per row
+            col = i // 6
             btn = self._create_neon_button(chord_frame, chord_type, 
                                          lambda ct=chord_type: self._on_chord_type_selected(ct))
             btn.grid(row=row, column=col, padx=3, pady=3, sticky="ew")
