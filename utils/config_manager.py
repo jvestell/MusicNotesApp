@@ -26,17 +26,9 @@ class ConfigManager:
                 "show_note_names": True,
                 "lefty_mode": False
             },
-            "audio": {
-                "volume": 0.8,
-                "note_duration": 1.0
-            },
             "tuning": {
                 "current": "standard",
                 "custom": []
-            },
-            "ear_training": {
-                "difficulty": "beginner",
-                "auto_play": True
             }
         }
         

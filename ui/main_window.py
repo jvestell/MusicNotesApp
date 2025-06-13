@@ -4,7 +4,6 @@ Main application window with cyberpunk theme
 
 import tkinter as tk
 from tkinter import ttk
-import pygame
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -13,7 +12,6 @@ from ui.control_panel import ControlPanel
 from ui.note_palette import NotePalette
 from ui.visualizers.chord_builder import ChordBuilderVisualizer
 from ui.visualizers.scale_chord import ScaleChordVisualizer
-from ui.visualizers.ear_trainer import EarTrainerVisualizer
 from utils.config_manager import ConfigManager
 from core.music_theory import MusicTheory
 from core.note_system import Note
@@ -26,9 +24,6 @@ class MainWindow:
     def __init__(self, config: ConfigManager):
         """Initialize the main window and setup UI components"""
         self.config = config
-        
-        # Initialize pygame for audio
-        pygame.mixer.init()
         
         # Setup the main window
         self.root = tk.Tk()
@@ -156,11 +151,15 @@ class MainWindow:
         self._init_visualizers()
         
     def _init_visualizers(self):
-        """Initialize all visualizer components"""
-        # Chord Builder only
-        self.visualizers["chord_builder"] = ChordBuilderVisualizer(
-            self.visualizer_frame, self.theory, self.colors
-        )
+        """Initialize visualizer components"""
+        self.visualizers = {
+            "chord_builder": ChordBuilderVisualizer(self.visualizer_frame, self.theory, self.colors),
+            "scale_chord": ScaleChordVisualizer(self.visualizer_frame, self.theory, self.colors)
+        }
+        
+        # Initially hide all visualizers
+        for visualizer in self.visualizers.values():
+            visualizer.pack_forget()
         
     def _show_visualizer(self, name: str):
         """Show a specific visualizer and hide others"""
