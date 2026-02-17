@@ -3,6 +3,7 @@ Interactive fretboard visualization with cyberpunk styling
 """
 
 import tkinter as tk
+import threading
 from typing import Dict, List, Optional, Tuple
 from core.note_system import Note
 from core.chord_system import Chord
@@ -12,7 +13,7 @@ import math
 class FretboardCanvas(tk.Canvas):
     """Interactive fretboard visualization with cyberpunk styling"""
     
-    def __init__(self, parent, bg="#2a2a35", color_scheme=None, **kwargs):
+    def __init__(self, parent, bg="#2a2a35", color_scheme=None, audio_engine=None, **kwargs):
         """Initialize the fretboard canvas"""
         super().__init__(parent, bg=bg, highlightthickness=0, **kwargs)
         
@@ -70,6 +71,9 @@ class FretboardCanvas(tk.Canvas):
         self.target_notes = []  # List of notes that should be placed
         self.validation_mode = False  # Whether to validate placed notes
         
+        # Audio engine (optional)
+        self.audio_engine = audio_engine
+
         # Drag and drop state
         self.drag_data = {
             "item": None,
@@ -104,8 +108,7 @@ class FretboardCanvas(tk.Canvas):
         note_info = self._get_note_at_position(event.x, event.y)
         if note_info:
             string_idx, fret = note_info
-            # Play the note sound
-            # self._play_note(string_idx, fret)
+            self._play_note(string_idx, fret)
             
     def _on_hover(self, event):
         """Handle mouse hover events"""
@@ -186,6 +189,14 @@ class FretboardCanvas(tk.Canvas):
         
         return str(note.name)
         
+    def _play_note(self, string_idx: int, fret: int):
+        """Play the note at the given string and fret position in a background thread"""
+        if not self.audio_engine:
+            return
+        open_note = Note(self.tuning[string_idx])
+        note = open_note.transpose(fret)
+        threading.Thread(target=self.audio_engine.play_note, args=(note,), daemon=True).start()
+
     def _draw_fretboard(self):
         """Draw the fretboard with strings and frets"""
         self.delete("all")  # Clear canvas

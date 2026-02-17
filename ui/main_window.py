@@ -15,6 +15,7 @@ from ui.visualizers.chord_builder import ChordBuilderVisualizer
 from ui.visualizers.scale_chord import ScaleChordVisualizer
 from ui.visualizers.ear_trainer import EarTrainerVisualizer
 from utils.config_manager import ConfigManager
+from utils.audio_engine import AudioEngine
 from core.music_theory import MusicTheory
 from core.note_system import Note
 from core.chord_system import Chord
@@ -27,9 +28,10 @@ class MainWindow:
         """Initialize the main window and setup UI components"""
         self.config = config
         
-        # Initialize pygame for audio
+        # Initialize pygame for audio and create the shared audio engine
         pygame.mixer.init()
-        
+        self.audio = AudioEngine()
+
         # Setup the main window
         self.root = tk.Tk()
         self.root.title("NeckNavigator - Guitar Theory Explorer")
@@ -129,9 +131,10 @@ class MainWindow:
         self.fretboard_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         # Create the fretboard canvas
-        self.fretboard = FretboardCanvas(self.fretboard_frame, 
+        self.fretboard = FretboardCanvas(self.fretboard_frame,
                                         bg=self.colors["fretboard"],
-                                        color_scheme=self.colors)
+                                        color_scheme=self.colors,
+                                        audio_engine=self.audio)
         self.fretboard.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Create the note palette (initially hidden)
@@ -142,38 +145,52 @@ class MainWindow:
         self.note_palette.pack_forget()
         
         # Bottom section with control panel
-        self.control_panel = ControlPanel(self.main_frame, 
+        self.control_panel = ControlPanel(self.main_frame,
                                         self.theory,
                                         self.colors,
-                                        self._on_control_change)
+                                        self._on_control_change,
+                                        audio_engine=self.audio)
         self.control_panel.pack(fill=tk.X, expand=False, pady=5)
         
-        # Frame for visualizers (initially hidden)
-        self.visualizer_frame = tk.Frame(self.main_frame, bg=self.colors["bg_med"])
         self.visualizers = {}
-        
+
         # Initialize visualizers
         self._init_visualizers()
         
     def _init_visualizers(self):
-        """Initialize all visualizer components"""
-        # Chord Builder only
-        self.visualizers["chord_builder"] = ChordBuilderVisualizer(
-            self.visualizer_frame, self.theory, self.colors
-        )
-        
+        """Initialize visualizer windows (created on demand)"""
+        self.visualizer_windows = {}
+
     def _show_visualizer(self, name: str):
-        """Show a specific visualizer and hide others"""
-        # Hide all visualizers first
-        for vis in self.visualizers.values():
-            vis.pack_forget()
-            
-        # Show the requested visualizer
-        if name in self.visualizers:
-            self.visualizer_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-            self.visualizers[name].pack(fill=tk.BOTH, expand=True)
-        else:
-            self.visualizer_frame.pack_forget()
+        """Open a visualizer in its own top-level window"""
+        if name == "chord_builder":
+            self._show_chord_builder_window()
+
+    def _show_chord_builder_window(self):
+        """Open the Chord Builder in a dedicated window, or bring it to focus"""
+        win = self.visualizer_windows.get("chord_builder")
+        if win and tk.Toplevel.winfo_exists(win):
+            win.lift()
+            win.focus_force()
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title("Chord Builder")
+        win.geometry("900x600")
+        win.minsize(700, 500)
+        win.configure(bg=self.colors["bg_dark"])
+        self.visualizer_windows["chord_builder"] = win
+
+        visualizer = ChordBuilderVisualizer(win, self.theory, self.colors)
+        visualizer.pack(fill=tk.BOTH, expand=True)
+        self.visualizers["chord_builder"] = visualizer
+
+        def on_close():
+            self.visualizer_windows.pop("chord_builder", None)
+            self.visualizers.pop("chord_builder", None)
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
             
     def _on_control_change(self, event_type: str, data: dict):
         """Handle control panel events"""
@@ -181,7 +198,8 @@ class MainWindow:
             # Check for visual effect
             visual_effect = data.get("visual_effect")
             self.fretboard.display_chord(data["chord"], visual_effect)
-            self.visualizers["chord_builder"].update_chord(data["chord"])
+            if "chord_builder" in self.visualizers:
+                self.visualizers["chord_builder"].update_chord(data["chord"])
         elif event_type == "scale_changed":
             self.fretboard.display_scale(data["scale"])
         elif event_type == "clear":
@@ -226,7 +244,6 @@ class MainWindow:
         """Reset to a new session"""
         self.control_panel.reset()
         self.fretboard.clear()
-        self._show_visualizer(None)
         
     def _show_chord_builder(self):
         """Show the chord builder visualizer"""

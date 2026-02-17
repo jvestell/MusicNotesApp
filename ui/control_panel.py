@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List, Optional, Callable
 import logging
+import threading
 import time
 
 from core.music_theory import MusicTheory
@@ -19,14 +20,19 @@ logger = logging.getLogger(__name__)
 class ControlPanel(tk.Frame):
     """Control panel for the fretboard with cyberpunk styling"""
     
-    def __init__(self, parent, theory: MusicTheory, colors: Dict, callback: Callable, **kwargs):
+    def __init__(self, parent, theory: MusicTheory, colors: Dict, callback: Callable, audio_engine=None, **kwargs):
         """Initialize the control panel"""
         bg_color = colors["bg_med"]
         super().__init__(parent, bg=bg_color, **kwargs)
-        
+
         self.theory = theory
         self.colors = colors
         self.callback = callback
+        self.audio_engine = audio_engine
+
+        # Track current chord/scale for playback
+        self._current_chord = None
+        self._current_scale = None
         
         # Track selected highlight type
         self.selected_highlight_type = tk.StringVar(value="")
@@ -441,10 +447,11 @@ class ControlPanel(tk.Frame):
                                     fg=self.colors["text_secondary"],
                                     bg=self.colors["bg_light"])
         action_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
-        # Action buttons (remove Play Sound)
         actions = [
             ("Show Chord", self._show_chord),
             ("Show Scale", self._show_scale),
+            ("Play Chord", self._play_chord),
+            ("Play Scale", self._play_scale),
             ("Clear", self._clear)
         ]
         for text, command in actions:
@@ -518,6 +525,8 @@ class ControlPanel(tk.Frame):
             try:
                 root_note = Note(self.selected_note.get())
                 chord = self.theory.get_chord(root_note, chord_type)
+                self._current_chord = chord
+                self._current_scale = None
                 self.callback("chord_changed", {"chord": chord})
             except Exception as e:
                 logger.error(f"Error creating chord: {e}")
@@ -557,10 +566,12 @@ class ControlPanel(tk.Frame):
         chord_type = self.selected_chord_type.get()
         try:
             chord = self.theory.get_chord(root_note, chord_type)
+            self._current_chord = chord
+            self._current_scale = None
             self.callback("chord_changed", {"chord": chord})
         except ValueError as e:
             print(f"Error: {e}")
-            
+
     def _show_scale(self):
         """Show the selected scale"""
         if not self.selected_note.get():
@@ -569,12 +580,25 @@ class ControlPanel(tk.Frame):
         scale_type = self.selected_scale_type.get()
         try:
             scale = self.theory.get_scale(root_note, scale_type)
+            self._current_scale = scale
+            self._current_chord = None
             self.callback("scale_changed", {"scale": scale})
         except ValueError as e:
             print(f"Error: {e}")
             
-    def _play_sound(self):
-        pass  # Remove Play Sound implementation
+    def _play_chord(self):
+        """Play the currently displayed chord"""
+        if not self.audio_engine or not self._current_chord:
+            return
+        chord = self._current_chord
+        threading.Thread(target=self.audio_engine.play_chord, args=(chord,), daemon=True).start()
+
+    def _play_scale(self):
+        """Play the currently displayed scale"""
+        if not self.audio_engine or not self._current_scale:
+            return
+        scale = self._current_scale
+        threading.Thread(target=self.audio_engine.play_scale, args=(scale,), daemon=True).start()
         
     def _clear(self):
         """Clear the fretboard"""
@@ -987,6 +1011,9 @@ class ControlPanel(tk.Frame):
             fg=self.colors["text_primary"]
         ))
         
+        self._current_chord = current_chord
+        self._current_scale = None
+
         # Notify callback of chord change with visual effect
         self.callback("chord_changed", {
             "chord": current_chord,
