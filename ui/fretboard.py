@@ -926,6 +926,7 @@ class FretboardCanvas(tk.Canvas):
                             break
                     # Add the new note
                     self.placed_notes.append((string_idx, fret, self.drag_data["note"], True))
+                    self._play_note(string_idx, fret)
             else:
                 # In non-validation mode, allow any placement
                 # Check if this position already has a note
@@ -936,7 +937,8 @@ class FretboardCanvas(tk.Canvas):
                         break
                 # Add the new note
                 self.placed_notes.append((string_idx, fret, self.drag_data["note"], True))
-            
+                self._play_note(string_idx, fret)
+
             # Redraw the fretboard
             self._draw_notes()
             
