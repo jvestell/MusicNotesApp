@@ -174,10 +174,14 @@ class AudioEngine:
         
     def play_audio(self, audio_data: np.ndarray):
         """Play audio data using pygame"""
-        # Create a sound object
-        sound = pygame.mixer.Sound(audio_data.tobytes())
-        
-        # Play the sound
+        # pygame mixer expects interleaved stereo; duplicate mono to both channels
+        channels = pygame.mixer.get_init()[2]
+        if channels == 2:
+            stereo = np.column_stack((audio_data, audio_data))
+            raw = stereo.astype(np.int16).tobytes()
+        else:
+            raw = audio_data.astype(np.int16).tobytes()
+        sound = pygame.mixer.Sound(buffer=raw)
         sound.play()
         
     def play_note(self, note: Note, duration=1.0, decay=0.5):

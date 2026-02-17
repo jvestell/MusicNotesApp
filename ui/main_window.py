@@ -15,6 +15,7 @@ from ui.visualizers.chord_builder import ChordBuilderVisualizer
 from ui.visualizers.scale_chord import ScaleChordVisualizer
 from ui.visualizers.ear_trainer import EarTrainerVisualizer
 from utils.config_manager import ConfigManager
+from utils.audio_engine import AudioEngine
 from core.music_theory import MusicTheory
 from core.note_system import Note
 from core.chord_system import Chord
@@ -27,9 +28,10 @@ class MainWindow:
         """Initialize the main window and setup UI components"""
         self.config = config
         
-        # Initialize pygame for audio
+        # Initialize pygame for audio and create the shared audio engine
         pygame.mixer.init()
-        
+        self.audio = AudioEngine()
+
         # Setup the main window
         self.root = tk.Tk()
         self.root.title("NeckNavigator - Guitar Theory Explorer")
@@ -129,9 +131,10 @@ class MainWindow:
         self.fretboard_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         # Create the fretboard canvas
-        self.fretboard = FretboardCanvas(self.fretboard_frame, 
+        self.fretboard = FretboardCanvas(self.fretboard_frame,
                                         bg=self.colors["fretboard"],
-                                        color_scheme=self.colors)
+                                        color_scheme=self.colors,
+                                        audio_engine=self.audio)
         self.fretboard.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Create the note palette (initially hidden)
@@ -142,10 +145,11 @@ class MainWindow:
         self.note_palette.pack_forget()
         
         # Bottom section with control panel
-        self.control_panel = ControlPanel(self.main_frame, 
+        self.control_panel = ControlPanel(self.main_frame,
                                         self.theory,
                                         self.colors,
-                                        self._on_control_change)
+                                        self._on_control_change,
+                                        audio_engine=self.audio)
         self.control_panel.pack(fill=tk.X, expand=False, pady=5)
         
         self.visualizers = {}
