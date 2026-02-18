@@ -195,20 +195,32 @@ class MainWindow:
     def _on_control_change(self, event_type: str, data: dict):
         """Handle control panel events"""
         if event_type == "chord_changed":
-            # Check for visual effect
             visual_effect = data.get("visual_effect")
+            self.fretboard.revolving_triads_mode = bool(data.get("revolving_triads", False))
             self.fretboard.display_chord(data["chord"], visual_effect)
+            self.fretboard.clear_voice_leading()
             if "chord_builder" in self.visualizers:
                 self.visualizers["chord_builder"].update_chord(data["chord"])
         elif event_type == "scale_changed":
             self.fretboard.display_scale(data["scale"])
         elif event_type == "clear":
+            self.fretboard.revolving_triads_mode = False
             self.fretboard.clear()
+            self.fretboard.clear_ghost_preview()
+            self.fretboard.reset_committed_position()
+            self.fretboard.clear_voice_leading()
         elif event_type == "highlight_changed":
             self.fretboard.set_highlight_type(data["type"])
         elif event_type == "new_position":
-            # Handle new random position request for game mode
+            self.fretboard.clear_ghost_preview()
             self.fretboard.set_random_triad_position()
+        elif event_type == "preview_next_chord":
+            self.fretboard.show_ghost_preview(data["chord"])
+        elif event_type == "show_voice_leading":
+            # Show stepwise connector — ghost stays visible alongside voice leading
+            self.fretboard.show_voice_leading(
+                self.fretboard.current_position, data["to_chord"]
+            )
         elif event_type == "note_placement_mode":
             # Handle note placement mode toggle
             if data["enabled"]:

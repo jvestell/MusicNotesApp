@@ -858,7 +858,8 @@ class ControlPanel(tk.Frame):
         # Reset game state
         self.current_chord_index = 0
         self.is_game_paused.set(False)
-        
+        self._ghost_shown = False
+
         # Reset timers
         self.last_chord_change = time.time()
         self.last_position_change = time.time()
@@ -892,22 +893,32 @@ class ControlPanel(tk.Frame):
         """Check and update all game timers"""
         if self.is_game_paused.get():
             return
-        
+
         current_time = time.time()
-        
-        # Check chord timer using custom cycle time
-        if current_time - self.last_chord_change >= self.chord_cycle_seconds:
+        elapsed_chord = current_time - self.last_chord_change
+
+        # Ghost preview: show during the last 25% of the chord cycle (minimum 4 seconds)
+        preview_window = max(4.0, self.chord_cycle_seconds * 0.25)
+        preview_threshold = self.chord_cycle_seconds - preview_window
+        if elapsed_chord >= preview_threshold and not self._ghost_shown:
+            self._ghost_shown = True
+            next_idx = (self.current_chord_index + 1) % len(self.selected_chords)
+            next_chord = self.selected_chords[next_idx]
+            self.callback("preview_next_chord", {"chord": next_chord})
+
+        # Check chord timer
+        if elapsed_chord >= self.chord_cycle_seconds:
             self._next_chord()
             self.last_chord_change = current_time
             self.timer_start_time = current_time
-        
-        # Check position timer using custom cycle time
-        # Use a small buffer to account for timer precision
+            self._ghost_shown = False
+
+        # Check position timer
         if current_time - self.last_position_change >= self.triad_cycle_seconds:
             self._next_position()
             self.last_position_change = current_time
-        
-        # Continue checking with a shorter interval for more precise timing
+
+        # Continue checking
         self.game_timer = self.after(50, self._check_timers)
 
     def _update_timer_display(self):
@@ -933,15 +944,18 @@ class ControlPanel(tk.Frame):
         """Move to the next chord in the sequence"""
         if not self.selected_chords:
             return
-            
+
+        # Fire voice-leading callback before moving to the next chord
+        # (the fretboard still holds the current position at this moment)
+        next_idx = (self.current_chord_index + 1) % len(self.selected_chords)
+        next_chord = self.selected_chords[next_idx]
+        self.callback("show_voice_leading", {"to_chord": next_chord})
+
         # Move to next chord
-        self.current_chord_index = (self.current_chord_index + 1) % len(self.selected_chords)
-        
+        self.current_chord_index = next_idx
+
         # Update display with visual effect
         self._update_current_chord()
-        
-        # Don't reset position timer or trigger new position on chord change
-        # This ensures positions only change every 5 seconds
 
     def _stop_timers(self):
         """Stop all game timers"""
@@ -1017,7 +1031,8 @@ class ControlPanel(tk.Frame):
         # Notify callback of chord change with visual effect
         self.callback("chord_changed", {
             "chord": current_chord,
-            "visual_effect": "explosion"
+            "visual_effect": "explosion",
+            "revolving_triads": True
         })
 
     def _clear_placed_notes(self):
