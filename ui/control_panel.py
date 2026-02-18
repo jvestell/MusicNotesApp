@@ -246,18 +246,18 @@ class ControlPanel(tk.Frame):
         # Timer display
         self.timer_display = tk.Label(self.game_status_frame,
                                     text="Time: 00:00",
-                                    font=("Orbitron", 9),
-                                    fg=self.colors["text_primary"],
+                                    font=("Orbitron", 14, "bold"),
+                                    fg=self.colors["accent1"],
                                     bg=self.colors["bg_light"])
-        self.timer_display.pack(fill=tk.X, padx=5, pady=2)
-        
+        self.timer_display.pack(fill=tk.X, padx=5, pady=4)
+
         # Current chord display
         self.current_chord_display = tk.Label(self.game_status_frame,
                                            text="Current Chord: None",
-                                           font=("Orbitron", 9),
-                                           fg=self.colors["text_primary"],
+                                           font=("Orbitron", 11, "bold"),
+                                           fg=self.colors["text_secondary"],
                                            bg=self.colors["bg_light"])
-        self.current_chord_display.pack(fill=tk.X, padx=5, pady=2)
+        self.current_chord_display.pack(fill=tk.X, padx=5, pady=4)
         
         # Initially hide game status
         self.game_status_frame.pack_forget()

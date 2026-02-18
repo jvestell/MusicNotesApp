@@ -631,6 +631,10 @@ class FretboardCanvas(tk.Canvas):
         # Re-render voice-leading overlay on top
         self._draw_voice_leading()
 
+        # Position / inversion label (revolving triads mode only)
+        if self.revolving_triads_mode and self.highlighted_notes and self.current_chord:
+            self._draw_position_label(width, height)
+
     def set_highlight_type(self, highlight_type: str):
         """Set the current highlight type and apply it"""
         self.current_highlight_type = highlight_type
@@ -1108,6 +1112,156 @@ class FretboardCanvas(tk.Canvas):
 
         # Fade out the passage after 4 seconds
         self.after(4000, self.clear_voice_leading)
+
+    # ------------------------------------------------------------------ #
+    #  Position / inversion label                                          #
+    # ------------------------------------------------------------------ #
+
+    def _get_inversion_label(self) -> str:
+        """
+        Determine the inversion of the current triad position.
+
+        The bass note is the note on the lowest-pitched string in the
+        current position (highest string_idx in our top-to-low tuning).
+        Compare that note name against the triad tones.
+        """
+        if not self.highlighted_notes or not self.current_chord:
+            return ""
+
+        triad = self.current_chord.get_triad()
+        if len(triad) < 3:
+            return ""
+
+        # Lowest-pitched string has the highest string_idx (E2 = index 5)
+        bass_string, bass_fret = max(self.highlighted_notes, key=lambda sf: sf[0])
+        bass_note_name = self._get_note_name(bass_string, bass_fret)
+
+        root_name  = triad[0].name
+        third_name = triad[1].name
+        fifth_name = triad[2].name
+
+        if bass_note_name == root_name:
+            return "Root Position"
+        elif bass_note_name == third_name:
+            return "1st Inversion"
+        elif bass_note_name == fifth_name:
+            return "2nd Inversion"
+        else:
+            return ""
+
+    def _get_neck_position_label(self) -> str:
+        """
+        Return a conventional neck-position label based on the lowest
+        non-open fret in the current triad shape.
+
+        Guitar neck positions:
+          open / fret 1-2  → Open / 1st Position
+          fret 3-5         → 2nd Position
+          fret 6-8         → 3rd Position  (near 5th-fret marker)
+          fret 9-11        → 4th Position  (near 9th-fret marker)
+          fret 12+         → 5th Position  (octave)
+        """
+        if not self.highlighted_notes:
+            return ""
+
+        fretted = [f for _, f in self.highlighted_notes if f > 0]
+        if not fretted:
+            return "Open Position"
+
+        lo = min(fretted)
+        if lo <= 2:
+            return "1st Position"
+        elif lo <= 5:
+            return "2nd Position"
+        elif lo <= 8:
+            return "3rd Position"
+        elif lo <= 11:
+            return "4th Position"
+        else:
+            return "5th Position"
+
+    def _get_chord_label(self) -> str:
+        """Return a compact chord symbol e.g. 'Gmaj7', 'Cm', 'D7'."""
+        if not self.current_chord:
+            return ""
+        TYPE_SYMBOLS = {
+            "Major": "",      "Minor": "m",     "7": "7",
+            "maj7": "maj7",   "m7": "m7",       "sus2": "sus2",
+            "sus4": "sus4",   "aug": "aug",      "dim": "dim",
+            "dim7": "dim7",   "9": "9",          "maj9": "maj9",
+            "m9": "m9",       "6": "6",          "m6": "m6",
+            "add9": "add9",   "madd9": "madd9",  "7sus4": "7sus4",
+            "7#5": "7#5",     "7b5": "7b5",      "m7b5": "m7b5",
+            "13": "13",       "m13": "m13",
+        }
+        symbol = TYPE_SYMBOLS.get(self.current_chord.chord_type,
+                                  self.current_chord.chord_type)
+        return f"{self.current_chord.root.name}{symbol}"
+
+    def _draw_position_label(self, canvas_width: int, canvas_height: int):
+        """Draw chord name + inversion + neck-position panel in the top-right corner."""
+        self.delete("pos_label")
+
+        chord_label = self._get_chord_label()
+        inversion   = self._get_inversion_label()
+        position    = self._get_neck_position_label()
+
+        if not chord_label and not inversion and not position:
+            return
+
+        CHORD_COLOR = "#ffffff"
+        ACCENT      = self.colors["accent1"]
+        SECONDARY   = self.colors["text_secondary"]
+        PANEL_BG    = "#0e1a2a"
+
+        pad_x, pad_y = 10, 10
+        box_w, box_h = 190, 100
+        x1 = canvas_width - pad_x - box_w
+        y1 = pad_y
+        x2 = canvas_width - pad_x
+        y2 = pad_y + box_h
+        cx = x1 + box_w // 2
+
+        # Panel background
+        self.create_rectangle(x1, y1, x2, y2,
+                              fill=PANEL_BG,
+                              outline=ACCENT,
+                              width=1,
+                              tags=("pos_label",))
+
+        # Large bold chord name
+        self.create_text(cx, y1 + 26,
+                         text=chord_label,
+                         fill=CHORD_COLOR,
+                         font=("Orbitron", 22, "bold"),
+                         anchor=tk.CENTER,
+                         tags=("pos_label",))
+
+        # Divider
+        self.create_line(x1 + 8, y1 + 52, x2 - 8, y1 + 52,
+                         fill=self.colors["grid_line"],
+                         tags=("pos_label",))
+
+        # Inversion line
+        self.create_text(cx, y1 + 66,
+                         text=inversion,
+                         fill=ACCENT,
+                         font=("Orbitron", 9, "bold"),
+                         anchor=tk.CENTER,
+                         tags=("pos_label",))
+
+        # Divider
+        self.create_line(x1 + 8, y1 + 78, x2 - 8, y1 + 78,
+                         fill=self.colors["grid_line"],
+                         tags=("pos_label",))
+
+        # Neck position line
+        self.create_text(cx, y1 + 90,
+                         text=position,
+                         fill=SECONDARY,
+                         font=("Orbitron", 9),
+                         anchor=tk.CENTER,
+                         tags=("pos_label",))
 
     def _on_drag_start(self, event):
         """Handle the start of a drag operation"""
