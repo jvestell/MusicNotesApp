@@ -48,15 +48,20 @@ class NotePalette(tk.Frame):
         # Natural notes
         natural_notes = ["C", "D", "E", "F", "G", "A", "B"]
         sharps = ["C#", "D#", "F#", "G#", "A#"]
-        
+
+        # Store button references for filtering
+        self.note_buttons = {}
+
         # Create a grid of note buttons
         for i, note in enumerate(natural_notes):
             btn = self._create_note_button(notes_frame, note)
             btn.grid(row=i, column=0, padx=3, pady=3, sticky="ew")
-            
+            self.note_buttons[note] = btn
+
         for i, note in enumerate(sharps):
             btn = self._create_note_button(notes_frame, note)
             btn.grid(row=i, column=1, padx=3, pady=3, sticky="ew")
+            self.note_buttons[note] = btn
             
     def _create_note_button(self, parent, note: str) -> tk.Button:
         """Create a draggable note button"""
@@ -148,4 +153,17 @@ class NotePalette(tk.Frame):
             "note": None,
             "x": 0,
             "y": 0
-        } 
+        }
+
+    def filter_to_notes(self, note_names: list):
+        """Show only the specified notes; hide all others."""
+        for name, btn in self.note_buttons.items():
+            if name in note_names:
+                btn.grid()
+            else:
+                btn.grid_remove()
+
+    def show_all_notes(self):
+        """Restore all note buttons to visible."""
+        for btn in self.note_buttons.values():
+            btn.grid()

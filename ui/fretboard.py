@@ -62,9 +62,8 @@ class FretboardCanvas(tk.Canvas):
         self.current_highlight_type = ""
         
         # Game mode state
-        self.current_position = None  # Current triad position
         self.explosion_animation = []  # Initialize as empty list
-        
+
         # Note placement state
         self.note_placement_mode = False
         self.placed_notes = []  # List of (string_idx, fret, note, is_correct) tuples
@@ -74,11 +73,12 @@ class FretboardCanvas(tk.Canvas):
         # Audio engine (optional)
         self.audio_engine = audio_engine
 
-        # Revolving triads extras
-        self.revolving_triads_mode = False  # Suppress full chord map when True
-        self.ghost_position = None          # Upcoming triad position shown as ghost
-        self._committed_next_position = None  # Position locked in by ghost preview
-        self.voice_leading_notes = []       # [(string_idx, fret, label)] connector passage
+        # Triad Finder mode
+        self.triad_finder_mode = False
+        self.triad_finder_target_positions = set()   # {(string_idx, fret), ...}
+        self.triad_finder_found_positions = set()    # {(string_idx, fret), ...}
+        self.triad_finder_chord_label = ""
+        self.triad_finder_callback = None            # callable(event_type, data)
 
         # Drag and drop state
         self.drag_data = {
@@ -107,6 +107,8 @@ class FretboardCanvas(tk.Canvas):
     def _on_resize(self, event):
         """Handle canvas resize events"""
         self._draw_fretboard()
+        if self.triad_finder_mode:
+            self._draw_notes()
         
     def _on_click(self, event):
         """Handle mouse click events"""
@@ -281,10 +283,6 @@ class FretboardCanvas(tk.Canvas):
         """Redraw the currently displayed notes"""
         if self.current_chord:
             self.display_chord(self.current_chord)
-            # In revolving triads mode restore the current triad position
-            if self.revolving_triads_mode and self.current_position:
-                self.highlighted_notes = list(self.current_position)
-                self._draw_notes()
         elif self.current_scale:
             self.display_scale(self.current_scale)
             
@@ -297,26 +295,23 @@ class FretboardCanvas(tk.Canvas):
         self.current_chord = chord
         self.current_scale = None
 
-        # In revolving triads mode only the selected triad position is shown;
-        # skip populating the full chord map so the fretboard stays clean.
-        if not self.revolving_triads_mode:
-            for string_idx in range(self.strings):
-                open_note = Note(self.tuning[string_idx])
-                for fret in range(self.frets + 1):
-                    fretted_note = open_note.transpose(fret)
-                    for chord_note in chord.notes:
-                        if fretted_note.name == chord_note.name:
-                            color = self.colors["accent1"]
-                            if fretted_note.name == chord.root.name:
-                                color = self.colors["accent2"]
-                            self.displayed_notes.append((string_idx, fret, color))
-                            break
+        for string_idx in range(self.strings):
+            open_note = Note(self.tuning[string_idx])
+            for fret in range(self.frets + 1):
+                fretted_note = open_note.transpose(fret)
+                for chord_note in chord.notes:
+                    if fretted_note.name == chord_note.name:
+                        color = self.colors["accent1"]
+                        if fretted_note.name == chord.root.name:
+                            color = self.colors["accent2"]
+                        self.displayed_notes.append((string_idx, fret, color))
+                        break
 
         # Draw all notes
         self._draw_notes()
 
         # Apply current highlight if any
-        if self.current_highlight_type and not self.revolving_triads_mode:
+        if self.current_highlight_type:
             self._apply_highlight(self.current_highlight_type)
 
         # Handle visual effects
@@ -584,52 +579,9 @@ class FretboardCanvas(tk.Canvas):
                            font=("Orbitron", 10, "bold"),
                            tags=("note", "note_text"))
 
-        # Ghost preview: upcoming triad position (dimmed, dashed outline)
-        if self.ghost_position:
-            GHOST_FILL = "#1a2a3a"
-            GHOST_OUTLINE = "#3a6a9a"
-            for string_idx, fret in self.ghost_position:
-                y = (string_idx + 1) * string_spacing
-                x = (fret + 0.5) * fret_spacing if fret > 0 else fret_spacing / 2
-                note_name = self._get_note_name(string_idx, fret)
-                self.create_oval(x - 15, y - 15, x + 15, y + 15,
-                                 fill=GHOST_FILL,
-                                 outline=GHOST_OUTLINE,
-                                 width=2,
-                                 dash=(4, 3),
-                                 tags=("note", "ghost"))
-                self.create_text(x, y, text=note_name,
-                                 fill=GHOST_OUTLINE,
-                                 font=("Orbitron", 9),
-                                 tags=("note", "ghost_text"))
-
-        # In revolving triads mode draw the active triad position directly
-        if self.revolving_triads_mode and self.highlighted_notes:
-            triad_names = (
-                {n.name for n in self.current_chord.get_triad()}
-                if self.current_chord else set()
-            )
-            root_name = self.current_chord.root.name if self.current_chord else None
-            for string_idx, fret in self.highlighted_notes:
-                y = (string_idx + 1) * string_spacing
-                x = (fret + 0.5) * fret_spacing if fret > 0 else fret_spacing / 2
-                note_name = self._get_note_name(string_idx, fret)
-                color = self.colors["accent2"] if note_name == root_name else self.colors["accent1"]
-                # Glow ring
-                self.create_oval(x - 18, y - 18, x + 18, y + 18,
-                                 fill=color, outline="", tags=("note", "triad_glow"))
-                self.create_oval(x - 17, y - 17, x + 17, y + 17,
-                                 fill=self.colors["bg_dark"], outline="", tags=("note", "triad_bg"))
-                # Note dot
-                self.create_oval(x - 15, y - 15, x + 15, y + 15,
-                                 fill=color, outline="", tags=("note", "triad_dot"))
-                self.create_text(x, y, text=note_name,
-                                 fill=self.colors["bg_dark"],
-                                 font=("Orbitron", 10, "bold"),
-                                 tags=("note", "triad_text"))
-
-        # Re-render voice-leading overlay on top
-        self._draw_voice_leading()
+        # Draw triad finder overlay if active
+        if self.triad_finder_mode:
+            self._draw_triad_finder_overlay(width, height, string_spacing, fret_spacing)
 
     def set_highlight_type(self, highlight_type: str):
         """Set the current highlight type and apply it"""
@@ -679,435 +631,91 @@ class FretboardCanvas(tk.Canvas):
         # Clear explosion animation after all particles are gone
         self.after(50 * num_particles, lambda: setattr(self, 'explosion_animation', []))
         
-    def set_random_triad_position(self):
-        """Set a random position for the current chord's triad"""
-        if not self.current_chord:
-            return
-
-        # If a position was already committed via the ghost preview, use it directly
-        if self._committed_next_position:
-            new_position = self._committed_next_position
-            self._committed_next_position = None
-            old_position = self.current_position
-            self.current_position = new_position
-            self.highlighted_notes = new_position
-            self._transition_triad_position(old_position, new_position)
-            return
-
-        triad = self.current_chord.get_triad()
-        triad_names = [note.name for note in triad]
-
-        # Build a lookup: for each (string, fret) what triad note does it produce
-        # Then enumerate all 3-string combinations within a 4-fret window,
-        # one note per string, covering all 3 triad tones.
-        import random
-        from itertools import permutations
-
-        valid_positions = []
-        lower_string_positions = []
-        lower_string_set = {3, 4, 5}  # D, A, E (indices high-to-low)
-
-        # For each starting fret window
-        for start_fret in range(0, self.frets - 2):
-            end_fret = start_fret + 4
-
-            # For each group of 3 adjacent strings
-            for top_string in range(self.strings - 2):
-                string_group = [top_string, top_string + 1, top_string + 2]
-
-                # Find which frets on each string produce a triad tone
-                options = {}  # string_idx -> list of (fret, tone_name)
-                for s in string_group:
-                    open_note = Note(self.tuning[s])
-                    hits = []
-                    for fret in range(start_fret, end_fret):
-                        name = open_note.transpose(fret).name
-                        if name in triad_names:
-                            hits.append((fret, name))
-                    if hits:
-                        options[s] = hits
-
-                if len(options) < 3:
-                    continue  # Not all 3 strings have a triad tone in this window
-
-                # Try every combination (one fret choice per string) that
-                # covers all 3 distinct triad tones
-                for f0, n0 in options[string_group[0]]:
-                    for f1, n1 in options[string_group[1]]:
-                        for f2, n2 in options[string_group[2]]:
-                            if len({n0, n1, n2}) < len(triad_names):
-                                continue  # Doesn't cover all triad tones
-                            position = [
-                                (string_group[0], f0),
-                                (string_group[1], f1),
-                                (string_group[2], f2),
-                            ]
-                            if not self._is_playable_triad(position):
-                                continue
-                            uses_lower = bool(lower_string_set & set(string_group))
-                            if uses_lower:
-                                lower_string_positions.append(position)
-                            else:
-                                valid_positions.append(position)
-
-        # Deduplicate
-        def pos_key(p):
-            return tuple(sorted(p))
-        seen = set()
-        unique_lower, unique_valid = [], []
-        for p in lower_string_positions:
-            k = pos_key(p)
-            if k not in seen:
-                seen.add(k)
-                unique_lower.append(p)
-        for p in valid_positions:
-            k = pos_key(p)
-            if k not in seen:
-                seen.add(k)
-                unique_valid.append(p)
-
-        all_positions = unique_lower + unique_valid
-        if not all_positions:
-            new_position = None
-        elif unique_lower and random.random() < 0.4:
-            new_position = random.choice(unique_lower)
-        else:
-            new_position = random.choice(all_positions)
-        
-        if new_position:
-            # Store old position for transition
-            old_position = self.current_position
-            
-            # Update current position
-            self.current_position = new_position
-            
-            # Update highlighted notes with the new position
-            self.highlighted_notes = new_position
-            
-            # Redraw with transition effect
-            self._transition_triad_position(old_position, new_position)
-
-    def _is_playable_triad(self, triad_notes):
-        """Check if a triad position is physically playable"""
-        if not triad_notes or len(triad_notes) != 3:
-            return False
-        
-        # Get the frets and strings
-        frets = [fret for _, fret in triad_notes]
-        strings = [string for string, _ in triad_notes]
-        
-        # Check if frets are within 4 frets of each other
-        if max(frets) - min(frets) > 4:
-            return False
-        
-        # Check if strings are adjacent or within reasonable span
-        if max(strings) - min(strings) > 3:
-            return False
-        
-        return True
-
-    def _transition_triad_position(self, old_position, new_position):
-        """Handle the visual transition between triad positions"""
-        # Clear any existing explosion animation
-        if self.explosion_animation:
-            for item in self.explosion_animation:
-                self.delete(item)
-        self.explosion_animation = []  # Reset to empty list
-        
-        # First, clear all highlighted notes
-        self.delete("highlight")
-        
-        # If there was an old position, fade it out
-        if old_position:
-            for string_idx, fret in old_position:
-                # Calculate position
-                width = self.winfo_width()
-                height = self.winfo_height()
-                string_spacing = height / (self.strings + 1)
-                fret_spacing = width / (self.frets + 1)
-                
-                y = (string_idx + 1) * string_spacing
-                x = (fret + 0.5) * fret_spacing if fret > 0 else fret_spacing / 2
-                
-                # Create fade out effect
-                note = self.create_oval(x-10, y-10, x+10, y+10,
-                                      fill=self.colors["accent1"],
-                                      outline="",
-                                      tags=("transition", "fade_out"))
-                if note:  # Only append if note was created successfully
-                    self.explosion_animation.append(note)
-                
-                # Fade out animation
-                for i in range(5):
-                    self.after(100 * i, lambda n=note, s=i: 
-                        self.itemconfig(n, fill=self.colors["bg_dark"]))
-                
-                # Delete the fade out note after animation
-                self.after(500, lambda n=note: self.delete(n))
-        
-        # Then, animate the new position
-        if new_position:
-            # Clear any existing transition effects
-            self.delete("transition")
-            
-            for string_idx, fret in new_position:
-                # Calculate position
-                width = self.winfo_width()
-                height = self.winfo_height()
-                string_spacing = height / (self.strings + 1)
-                fret_spacing = width / (self.frets + 1)
-                
-                y = (string_idx + 1) * string_spacing
-                x = (fret + 0.5) * fret_spacing if fret > 0 else fret_spacing / 2
-                
-                # Create grow effect
-                for i in range(5):
-                    size = 10 + (i * 3)  # Grow from 10 to 22
-                    self.after(50 * i, lambda x=x, y=y, s=size: 
-                        self._draw_highlighted_note(x, y, s))
-        
-        # Finally, redraw all notes to ensure proper state
-        self.after(250, self._draw_notes)
-
-    def _draw_highlighted_note(self, x, y, size):
-        """Draw a single growing note dot during the transition animation"""
-        # Draw a larger background circle for glow effect
-        self.create_oval(x-size*1.2, y-size*1.2, x+size*1.2, y+size*1.2,
-                        fill=self.colors["accent1"], outline="",
-                        tags=("transition", "glow"))
-
-        # Draw actual note
-        self.create_oval(x-size, y-size, x+size, y+size,
-                        fill=self.colors["bg_dark"], outline="",
-                        tags=("transition", "note_circle"))
-
-        # Get the note name at this position
-        note_info = self._get_note_at_position(x, y)
-        if note_info:
-            string_idx, fret = note_info
-            note_name = self._get_note_name(string_idx, fret)
-            self.create_text(x, y, text=note_name,
-                            fill=self.colors["accent1"],
-                            font=("Orbitron", 12, "bold"),
-                            tags=("transition", "note_text"))
-
     # ------------------------------------------------------------------ #
-    #  Revolving Triads – ghost preview (Feature 3)                       #
+    #  Triad Finder                                                        #
     # ------------------------------------------------------------------ #
 
-    def show_ghost_preview(self, chord):
-        """Show a dimmed ghost of the upcoming triad position."""
-        triad = chord.get_triad()
-        triad_names = [n.name for n in triad]
-
-        import random
-        valid = []
-        for start_fret in range(0, self.frets - 2):
-            end_fret = start_fret + 4
-            for top_string in range(self.strings - 2):
-                string_group = [top_string, top_string + 1, top_string + 2]
-                options = {}
-                for s in string_group:
-                    open_note = Note(self.tuning[s])
-                    hits = []
-                    for fret in range(start_fret, end_fret):
-                        name = open_note.transpose(fret).name
-                        if name in triad_names:
-                            hits.append((fret, name))
-                    if hits:
-                        options[s] = hits
-                if len(options) < 3:
-                    continue
-                for f0, n0 in options[string_group[0]]:
-                    for f1, n1 in options[string_group[1]]:
-                        for f2, n2 in options[string_group[2]]:
-                            if len({n0, n1, n2}) < len(triad_names):
-                                continue
-                            position = [
-                                (string_group[0], f0),
-                                (string_group[1], f1),
-                                (string_group[2], f2),
-                            ]
-                            if self._is_playable_triad(position):
-                                valid.append(position)
-
-        chosen = random.choice(valid) if valid else None
-        self.ghost_position = chosen
-        self._committed_next_position = chosen  # Lock in — set_random_triad_position will use this
+    def set_triad_finder_label(self, chord_name: str):
+        """Phase 1: show chord name label on fretboard without computing targets."""
+        self.triad_finder_mode = True
+        self.triad_finder_chord_label = chord_name
+        self.triad_finder_target_positions = set()
+        self.triad_finder_found_positions = set()
+        self.triad_finder_callback = None
+        # Clear the fretboard and redraw with just the label
+        self.displayed_notes = []
+        self.highlighted_notes = []
+        self.current_chord = None
+        self.current_scale = None
+        self.placed_notes = []
+        self._draw_fretboard()
         self._draw_notes()
 
-    def clear_ghost_preview(self):
-        """Remove the ghost visual only. The committed position is preserved for set_random_triad_position to consume."""
-        self.ghost_position = None
+    def start_triad_finder(self, chord, triad_note_names, callback, chord_name=None):
+        """Phase 2: compute target positions and begin tracking."""
+        self.triad_finder_mode = True
+        self.triad_finder_chord_label = chord_name or (chord.name if chord else "")
+        self.triad_finder_callback = callback
+        self.note_placement_mode = True
+        self.triad_finder_found_positions = set()
+
+        # Compute every (string_idx, fret) where the note is a triad note (frets 1-13)
+        targets = set()
+        for string_idx in range(self.strings):
+            for fret in range(1, 14):
+                note_name = self._get_note_name(string_idx, fret)
+                if note_name in triad_note_names:
+                    targets.add((string_idx, fret))
+        self.triad_finder_target_positions = targets
+
+        self.placed_notes = []
+        self._draw_fretboard()
         self._draw_notes()
 
-    def reset_committed_position(self):
-        """Discard the committed next position (call on game stop/clear)."""
-        self._committed_next_position = None
+    def stop_triad_finder(self):
+        """Stop triad finder mode and restore clean fretboard."""
+        self.triad_finder_mode = False
+        self.triad_finder_target_positions = set()
+        self.triad_finder_found_positions = set()
+        self.triad_finder_chord_label = ""
+        self.triad_finder_callback = None
+        self.note_placement_mode = False
+        self.placed_notes = []
+        self.clear()
 
-    # ------------------------------------------------------------------ #
-    #  Revolving Triads – voice-leading connector (Feature 1)             #
-    # ------------------------------------------------------------------ #
+    def _draw_triad_finder_overlay(self, width, height, string_spacing, fret_spacing):
+        """Draw the chord label and found notes for Triad Finder mode."""
+        # Chord label at the top of the canvas
+        if self.triad_finder_chord_label:
+            self.create_text(
+                width / 2, string_spacing * 0.45,
+                text=self.triad_finder_chord_label,
+                fill=self.colors["text_primary"],
+                font=("Orbitron", 18, "bold"),
+                anchor=tk.CENTER,
+                tags=("note", "tf_label")
+            )
 
-    def show_voice_leading(self, from_position, to_chord):
-        """
-        Compute and display a stepwise connecting passage from the current
-        triad position to the nearest note of the incoming chord.
-
-        Strategy:
-        - Use the major scale rooted on the outgoing chord's root note.
-        - Stay within a 5-fret window centred on the current hand position.
-        - Walk stepwise (scale-step by scale-step) toward the closest
-          incoming triad note, capping the passage at 5 notes.
-        - Draw each note as a numbered amber dot so the player reads
-          them in order.
-        """
-        self.voice_leading_notes = []
-        self.delete("voice_lead")
-
-        if not from_position or not self.current_chord:
-            return
-
-        # --- 1. Build the major scale from the outgoing chord root ---
-        MAJOR = [0, 2, 4, 5, 7, 9, 11]
-        root = self.current_chord.root
-        scale_note_names = set()
-        for interval in MAJOR:
-            scale_note_names.add(root.transpose(interval).name)
-
-        # --- 2. Determine the hand's fret window ---
-        frets_used = [f for _, f in from_position if f > 0]
-        if frets_used:
-            center_fret = sum(frets_used) // len(frets_used)
-        else:
-            center_fret = 5
-        window_lo = max(0, center_fret - 2)
-        window_hi = min(self.frets, center_fret + 5)
-
-        # --- 3. Collect all scale notes in the window (not already in triad) ---
-        triad_names = {n.name for n in self.current_chord.get_triad()}
-        to_triad_names = {n.name for n in to_chord.get_triad()}
-
-        # All candidate positions: (string, fret, note_name, midi)
-        candidates = []
-        for string_idx in range(self.strings):
-            open_note = Note(self.tuning[string_idx])
-            for fret in range(window_lo, window_hi + 1):
-                note = open_note.transpose(fret)
-                if note.name in scale_note_names and note.name not in triad_names:
-                    candidates.append((string_idx, fret, note.name, note.midi_number))
-
-        if not candidates:
-            return
-
-        # --- 4. Find the target: closest incoming triad note by pitch ---
-        # Use the average midi of the current position as "current pitch"
-        current_midi_avg = sum(
-            Note(self.tuning[s]).transpose(f).midi_number
-            for s, f in from_position
-        ) / len(from_position)
-
-        # Find the incoming triad note whose pitch is closest to current average
-        best_target_midi = None
-        best_dist = 9999
-        for string_idx in range(self.strings):
-            open_note = Note(self.tuning[string_idx])
-            for fret in range(window_lo, window_hi + 1):
-                note = open_note.transpose(fret)
-                if note.name in to_triad_names:
-                    dist = abs(note.midi_number - current_midi_avg)
-                    if dist < best_dist:
-                        best_dist = dist
-                        best_target_midi = note.midi_number
-
-        if best_target_midi is None:
-            return
-
-        # --- 5. Walk stepwise toward the target, picking closest candidate ---
-        passage = []
-        used = set()
-        current_midi = current_midi_avg
-
-        for _ in range(5):
-            # Pick the unused candidate closest in pitch to current_midi
-            # that is also moving toward the target
-            direction = 1 if best_target_midi > current_midi else -1
-            best = None
-            best_score = 9999
-            for c in candidates:
-                s, f, name, midi = c
-                key = (s, f)
-                if key in used:
-                    continue
-                step = midi - current_midi
-                # Prefer steps in the right direction, 1-2 semitones away
-                if direction * step <= 0:
-                    continue
-                if abs(step) > 4:
-                    continue
-                score = abs(step)
-                if score < best_score:
-                    best_score = score
-                    best = c
-            if best is None:
-                break
-            s, f, name, midi = best
-            passage.append((s, f, str(len(passage) + 1)))
-            used.add((s, f))
-            current_midi = midi
-            if abs(midi - best_target_midi) <= 2:
-                break
-
-        self.voice_leading_notes = passage
-        self._draw_voice_leading()
-
-    def clear_voice_leading(self):
-        """Remove the voice-leading overlay."""
-        self.voice_leading_notes = []
-        self.delete("voice_lead")
-
-    def _draw_voice_leading(self):
-        """Render the voice-leading passage on the canvas."""
-        self.delete("voice_lead")
-        if not self.voice_leading_notes:
-            return
-
-        width = self.winfo_width()
-        height = self.winfo_height()
-        string_spacing = height / (self.strings + 1)
-        fret_spacing = width / (self.frets + 1)
-
-        AMBER = "#ffaa00"
-        prev_xy = None
-
-        for i, (string_idx, fret, label) in enumerate(self.voice_leading_notes):
+        # Draw found positions as green dots
+        for string_idx, fret in self.triad_finder_found_positions:
             y = (string_idx + 1) * string_spacing
-            x = (fret + 0.5) * fret_spacing if fret > 0 else fret_spacing / 2
-
-            # Draw connector line from previous note
-            if prev_xy:
-                self.create_line(
-                    prev_xy[0], prev_xy[1], x, y,
-                    fill=AMBER, width=2, dash=(4, 3),
-                    tags=("voice_lead",)
-                )
-            prev_xy = (x, y)
-
-            # Outer glow
+            x = (fret + 0.5) * fret_spacing
+            note_name = self._get_note_name(string_idx, fret)
+            # Glow ring
             self.create_oval(x - 18, y - 18, x + 18, y + 18,
-                             fill=AMBER, outline="", tags=("voice_lead",))
-            # Inner dark circle
-            self.create_oval(x - 14, y - 14, x + 14, y + 14,
+                             fill=self.colors["correct_note"], outline="",
+                             tags=("note", "tf_found_glow"))
+            self.create_oval(x - 17, y - 17, x + 17, y + 17,
                              fill=self.colors["bg_dark"], outline="",
-                             tags=("voice_lead",))
-            # Step number
-            self.create_text(x, y, text=label,
-                             fill=AMBER,
-                             font=("Orbitron", 9, "bold"),
-                             tags=("voice_lead",))
-
-        # Fade out the passage after 4 seconds
-        self.after(4000, self.clear_voice_leading)
+                             tags=("note", "tf_found_bg"))
+            # Note dot
+            self.create_oval(x - 15, y - 15, x + 15, y + 15,
+                             fill=self.colors["correct_note"], outline="",
+                             tags=("note", "tf_found_dot"))
+            self.create_text(x, y, text=note_name,
+                             fill=self.colors["bg_dark"],
+                             font=("Orbitron", 10, "bold"),
+                             tags=("note", "tf_found_text"))
 
     def _on_drag_start(self, event):
         """Handle the start of a drag operation"""
@@ -1200,10 +808,32 @@ class FretboardCanvas(tk.Canvas):
         
         if note_info and self.drag_data["note"]:
             string_idx, fret = note_info
-            
+
+            # Triad Finder mode: special validation
+            if self.triad_finder_mode:
+                if 1 <= fret <= 13:
+                    pos = (string_idx, fret)
+                    actual_note = self._get_note_name(string_idx, fret)
+                    dragged_name = str(self.drag_data["note"].name)
+                    if (pos in self.triad_finder_target_positions
+                            and pos not in self.triad_finder_found_positions
+                            and dragged_name == actual_note):
+                        self.triad_finder_found_positions.add(pos)
+                        self._play_note(string_idx, fret)
+                        self._draw_notes()
+                        remaining = len(self.triad_finder_target_positions) - len(self.triad_finder_found_positions)
+                        if self.triad_finder_callback:
+                            if remaining == 0:
+                                self.triad_finder_callback("all_found", {})
+                            else:
+                                self.triad_finder_callback("note_found", {"remaining": remaining})
+                self.delete("drag")
+                self.drag_data = {"item": None, "x": 0, "y": 0, "note": None, "is_dragging": False}
+                return
+
             # Get the actual note at this position
             actual_note = self._get_note_name(string_idx, fret)
-            
+
             # Validate the note placement
             if self.validation_mode:
                 # In validation mode, only allow placement if the dragged note matches the actual note
