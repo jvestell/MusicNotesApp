@@ -196,33 +196,16 @@ class MainWindow:
         """Handle control panel events"""
         if event_type == "chord_changed":
             visual_effect = data.get("visual_effect")
-            self.fretboard.revolving_triads_mode = bool(data.get("revolving_triads", False))
             self.fretboard.display_chord(data["chord"], visual_effect)
-            self.fretboard.clear_voice_leading()
             if "chord_builder" in self.visualizers:
                 self.visualizers["chord_builder"].update_chord(data["chord"])
         elif event_type == "scale_changed":
             self.fretboard.display_scale(data["scale"])
         elif event_type == "clear":
-            self.fretboard.revolving_triads_mode = False
             self.fretboard.clear()
-            self.fretboard.clear_ghost_preview()
-            self.fretboard.reset_committed_position()
-            self.fretboard.clear_voice_leading()
         elif event_type == "highlight_changed":
             self.fretboard.set_highlight_type(data["type"])
-        elif event_type == "new_position":
-            self.fretboard.clear_ghost_preview()
-            self.fretboard.set_random_triad_position()
-        elif event_type == "preview_next_chord":
-            self.fretboard.show_ghost_preview(data["chord"])
-        elif event_type == "show_voice_leading":
-            # Show stepwise connector — ghost stays visible alongside voice leading
-            self.fretboard.show_voice_leading(
-                self.fretboard.current_position, data["to_chord"]
-            )
         elif event_type == "note_placement_mode":
-            # Handle note placement mode toggle
             if data["enabled"]:
                 self.note_palette.pack(side=tk.RIGHT, fill=tk.Y, padx=5, pady=5)
                 self.fretboard.set_note_placement_mode(True)
@@ -230,9 +213,27 @@ class MainWindow:
                 self.note_palette.pack_forget()
                 self.fretboard.set_note_placement_mode(False)
         elif event_type == "clear_placed_notes":
-            # Clear all manually placed notes
             self.fretboard.clear_placed_notes()
+        elif event_type == "triad_finder_label":
+            # Phase 1: show chord name label on fretboard
+            self.fretboard.set_triad_finder_label(data["chord_name"])
+        elif event_type == "triad_finder_phase2":
+            # Phase 2: start tracking and filter the note palette
+            self.fretboard.start_triad_finder(
+                data["chord"], data["note_names"], self._on_triad_finder_event,
+                chord_name=data.get("chord_name")
+            )
+            self.note_palette.filter_to_notes(data["note_names"])
+            self.note_palette.pack(side=tk.RIGHT, fill=tk.Y, padx=5, pady=5)
+        elif event_type == "triad_finder_stop":
+            self.fretboard.stop_triad_finder()
+            self.note_palette.show_all_notes()
+            self.note_palette.pack_forget()
         
+    def _on_triad_finder_event(self, event_type: str, data: dict):
+        """Bridge fretboard callbacks back to the control panel during Triad Finder."""
+        self.control_panel.on_triad_finder_event(event_type, data)
+
     def _on_note_drag_start(self, note, event):
         """Handle the start of a note drag operation"""
         # Create a custom event with the note data

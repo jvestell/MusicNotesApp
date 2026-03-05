@@ -7,7 +7,6 @@ from tkinter import ttk
 from typing import Dict, List, Optional, Callable
 import logging
 import threading
-import time
 
 from core.music_theory import MusicTheory
 from core.note_system import Note
@@ -37,15 +36,14 @@ class ControlPanel(tk.Frame):
         # Track selected highlight type
         self.selected_highlight_type = tk.StringVar(value="")
         
-        # Game mode state
-        self.game_mode = tk.StringVar(value="normal")
-        self.is_game_paused = tk.BooleanVar(value=False)
-        self.game_timer = None
-        self.position_timer = None
-        self.current_chord_index = 0
-        self.selected_chords = []
-        self.chord_progression = []  # Store the selected chord progression
-        
+        # Triad Finder state
+        self.tf_active = False
+        self.tf_phase = 0      # 0=idle, 1=note selection, 2=fretboard placement
+        self.tf_chord = None
+        self.tf_triad_note_names = []
+        self.tf_selected_notes = set()
+        self.tf_note_btns = {}   # note_name -> tk.Button
+
         # Note placement mode state
         self.note_placement_mode = tk.BooleanVar(value=False)
         
@@ -55,9 +53,7 @@ class ControlPanel(tk.Frame):
         # Initialize with empty state
         self.reset()
         
-        # Set up default Revolving Triads settings
-        self._setup_default_triad_settings()
-        
+
     def _create_widgets(self):
         """Create all UI widgets"""
         # Create frames for organizing controls
@@ -99,7 +95,7 @@ class ControlPanel(tk.Frame):
         modes = [
             ("Normal", "normal"),
             ("Note Placement", "note_placement"),
-            ("Revolving Triads", "revolving_triads")
+            ("Triad Finder", "triad_finder")
         ]
         
         for text, value in modes:
@@ -107,162 +103,70 @@ class ControlPanel(tk.Frame):
                                          lambda v=value: self._on_game_mode_selected(v))
             btn.pack(side=tk.LEFT, fill=tk.X, padx=3, pady=3, expand=True)
             
-        # Game settings frame (initially hidden)
-        self.game_settings_frame = tk.LabelFrame(self.left_frame,
-                                               text="GAME SETTINGS",
-                                               font=("Orbitron", 10, "bold"),
-                                               fg=self.colors["text_secondary"],
-                                               bg=self.colors["bg_light"])
-        
-        # Triad cycle time setting
-        triad_frame = tk.Frame(self.game_settings_frame, bg=self.colors["bg_light"])
-        triad_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=3)
-        
-        tk.Label(triad_frame,
-                text="Triad Cycle (sec):",
-                font=("Orbitron", 9),
-                fg=self.colors["text_primary"],
-                bg=self.colors["bg_light"]).pack(side=tk.LEFT, padx=5)
-        
-        self.triad_cycle_time = tk.StringVar(value="7")
-        triad_spinbox = ttk.Spinbox(triad_frame,
-                                   from_=1,
-                                   to=60,
-                                   increment=0.5,
-                                   width=5,
-                                   textvariable=self.triad_cycle_time,
-                                   state="readonly")
-        triad_spinbox.pack(side=tk.LEFT, padx=5)
-        
-        # Chord cycle time setting
-        chord_frame = tk.Frame(self.game_settings_frame, bg=self.colors["bg_light"])
-        chord_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=3)
-        
-        tk.Label(chord_frame,
-                text="Chord Cycle (sec):",
-                font=("Orbitron", 9),
-                fg=self.colors["text_primary"],
-                bg=self.colors["bg_light"]).pack(side=tk.LEFT, padx=5)
-        
-        self.chord_cycle_time = tk.StringVar(value="21")
-        chord_spinbox = ttk.Spinbox(chord_frame,
-                                   from_=5,
-                                   to=120,
-                                   increment=0.5,
-                                   width=5,
-                                   textvariable=self.chord_cycle_time,
-                                   state="readonly")
-        chord_spinbox.pack(side=tk.LEFT, padx=5)
-        
-        # Start game button (initially disabled)
-        self.start_game_btn = self._create_neon_button(self.game_settings_frame,
-                                                      "Start Game",
-                                                      self._start_game)
-        self.start_game_btn.config(state=tk.DISABLED)  # Start disabled
-        self.start_game_btn.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-        
-        # Initially hide game settings
-        self.game_settings_frame.pack_forget()
-        
-        # Chord progression selector (initially hidden)
-        self.progression_frame = tk.LabelFrame(self.left_frame,
-                                             text="CHORD PROGRESSION",
-                                             font=("Orbitron", 10, "bold"),
-                                             fg=self.colors["text_secondary"],
-                                             bg=self.colors["bg_light"])
-        
-        # Create three chord selectors
-        self.progression_chords = []
-        for i in range(3):
-            chord_frame = tk.Frame(self.progression_frame, bg=self.colors["bg_light"])
-            chord_frame.pack(side=tk.LEFT, fill=tk.X, padx=3, pady=3, expand=True)
-            
-            # Note selector
-            note_var = tk.StringVar(value="")
-            note_menu = ttk.Combobox(chord_frame, 
-                                   textvariable=note_var,
-                                   values=["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"],
-                                   state="readonly",
-                                   width=3)
-            note_menu.pack(side=tk.LEFT, padx=2)
-            
-            # Chord type selector
-            type_var = tk.StringVar(value="")
-            type_menu = ttk.Combobox(chord_frame,
-                                   textvariable=type_var,
-                                   values=["Major", "Minor", "7", "maj7", "m7", "sus2", "sus4", 
-                                         "aug", "dim", "dim7", "9", "maj9", "m9", "6", "m6", 
-                                         "add9", "madd9", "7sus4", "7#5", "7b5", "m7b5", "13", "m13"],
-                                   state="readonly",
-                                   width=6)
-            type_menu.pack(side=tk.LEFT, padx=2)
-            
-            # Add button
-            add_btn = self._create_neon_button(chord_frame, "Add",
-                                             lambda n=note_var, t=type_var, idx=i: self._add_chord_to_progression(n, t, idx))
-            add_btn.pack(side=tk.LEFT, padx=2)
-            
-            # Delete button (initially hidden)
-            delete_btn = self._create_neon_button(chord_frame, "×",
-                                               lambda idx=i: self._delete_chord_from_progression(idx))
-            delete_btn.pack(side=tk.LEFT, padx=2)
-            delete_btn.pack_forget()  # Initially hidden
-            
-            # Store the variables
-            self.progression_chords.append({
-                "note": note_var,
-                "type": type_var,
-                "button": add_btn,
-                "delete_button": delete_btn
-            })
-        
-        # Initially hide progression selector
-        self.progression_frame.pack_forget()
-        
-        # Game controls (initially hidden)
-        self.game_controls_frame = tk.Frame(game_frame, bg=self.colors["bg_light"])
-        self.game_controls_frame.pack(side=tk.TOP, fill=tk.X, padx=3, pady=3)
-        
-        # Pause/Resume button
-        self.pause_btn = self._create_neon_button(self.game_controls_frame, "Pause",
-                                                self._toggle_game_pause)
-        self.pause_btn.pack(side=tk.LEFT, fill=tk.X, padx=3, pady=3, expand=True)
-        
-        # Stop button
-        self.stop_btn = self._create_neon_button(self.game_controls_frame, "Stop",
-                                               self._stop_game)
-        self.stop_btn.pack(side=tk.LEFT, fill=tk.X, padx=3, pady=3, expand=True)
-        
-        # Initially hide game controls
-        self.game_controls_frame.pack_forget()
-        
-        # Game status display
-        self.game_status_frame = tk.LabelFrame(self.left_frame,
-                                             text="GAME STATUS",
-                                             font=("Orbitron", 10, "bold"),
-                                             fg=self.colors["text_secondary"],
-                                             bg=self.colors["bg_light"])
-        
-        # Timer display
-        self.timer_display = tk.Label(self.game_status_frame,
-                                    text="Time: 00:00",
-                                    font=("Orbitron", 14, "bold"),
-                                    fg=self.colors["accent1"],
-                                    bg=self.colors["bg_light"])
-        self.timer_display.pack(fill=tk.X, padx=5, pady=4)
+        # Triad Finder frame (initially hidden)
+        self.tf_frame = tk.LabelFrame(self.left_frame,
+                                     text="TRIAD FINDER",
+                                     font=("Orbitron", 10, "bold"),
+                                     fg=self.colors["text_secondary"],
+                                     bg=self.colors["bg_light"])
 
-        # Current chord display
-        self.current_chord_display = tk.Label(self.game_status_frame,
-                                           text="Current Chord: None",
-                                           font=("Orbitron", 11, "bold"),
-                                           fg=self.colors["text_secondary"],
-                                           bg=self.colors["bg_light"])
-        self.current_chord_display.pack(fill=tk.X, padx=5, pady=4)
-        
-        # Initially hide game status
-        self.game_status_frame.pack_forget()
-        
-        # Note placement controls (initially hidden)
+        # Status label (chord name + instructions)
+        self.tf_status_label = tk.Label(self.tf_frame,
+                                       text="",
+                                       font=("Orbitron", 10, "bold"),
+                                       fg=self.colors["accent1"],
+                                       bg=self.colors["bg_light"],
+                                       wraplength=220,
+                                       justify=tk.CENTER)
+        self.tf_status_label.pack(fill=tk.X, padx=5, pady=4)
+
+        # Start button
+        self.tf_start_btn = self._create_neon_button(self.tf_frame, "Start",
+                                                    self._start_triad_finder)
+        self.tf_start_btn.pack(fill=tk.X, padx=5, pady=3)
+
+        # Stop button (hidden until game is active)
+        self.tf_stop_btn = self._create_neon_button(self.tf_frame, "Stop",
+                                                   self._stop_triad_finder)
+        self.tf_stop_btn.pack(fill=tk.X, padx=5, pady=3)
+        self.tf_stop_btn.pack_forget()
+
+        # Note selection frame (Phase 1) – 12 chromatic note buttons
+        self.tf_note_selection_frame = tk.Frame(self.tf_frame, bg=self.colors["bg_light"])
+        self.tf_note_selection_frame.pack(fill=tk.X, padx=5, pady=3)
+
+        chromatic = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        self.tf_note_btns = {}
+        for i, note_name in enumerate(chromatic):
+            row, col = divmod(i, 6)
+            btn = tk.Button(
+                self.tf_note_selection_frame,
+                text=note_name,
+                font=("Orbitron", 10, "bold"),
+                bg=self.colors["bg_dark"],
+                fg=self.colors["text_primary"],
+                activebackground=self.colors["accent1"],
+                activeforeground=self.colors["bg_dark"],
+                width=4, height=1,
+                command=lambda n=note_name: self._on_tf_note_selected(n)
+            )
+            btn.grid(row=row, column=col, padx=2, pady=2, sticky="ew")
+            self.tf_note_btns[note_name] = btn
+        self.tf_note_selection_frame.pack_forget()
+
+        # Tracker label (Phase 2)
+        self.tf_tracker_label = tk.Label(self.tf_frame,
+                                        text="Notes remaining: 0",
+                                        font=("Orbitron", 11, "bold"),
+                                        fg=self.colors["accent1"],
+                                        bg=self.colors["bg_light"])
+        self.tf_tracker_label.pack(fill=tk.X, padx=5, pady=4)
+        self.tf_tracker_label.pack_forget()
+
+        # Initially hide the whole TF frame
+        self.tf_frame.pack_forget()
+
+                # Note placement controls (initially hidden)
         self.note_placement_frame = tk.LabelFrame(self.left_frame,
                                                 text="NOTE PLACEMENT",
                                                 font=("Orbitron", 10, "bold"),
@@ -674,366 +578,162 @@ class ControlPanel(tk.Frame):
 
     def _on_game_mode_selected(self, mode):
         """Handle game mode selection"""
-        self.game_mode.set(mode)
-        
-        # Hide all game-related frames first
-        self.game_settings_frame.pack_forget()
-        self.progression_frame.pack_forget()
-        self.game_controls_frame.pack_forget()
-        self.game_status_frame.pack_forget()
+        # Hide all mode-specific frames first
+        self.tf_frame.pack_forget()
         self.note_placement_frame.pack_forget()
-        
-        # Stop any running game
-        self._stop_game()
-        
+
+        # Stop triad finder if active
+        if self.tf_active:
+            self._stop_triad_finder()
+
         if mode == "note_placement":
-            # Show note placement controls
             self.note_placement_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-            # Enable note placement mode
             self.note_placement_mode.set(True)
             self.callback("note_placement_mode", {"enabled": True})
-        elif mode == "revolving_triads":
-            # Show game settings and progression selector
-            self.game_settings_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-            self.progression_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-            
-            # Set up default chord progression if it's empty
-            if not self.chord_progression:
-                self._setup_default_chord_progression()
-            else:
-                # Reset progression and disable start button
-                self.chord_progression = []
-                self.start_game_btn.config(state=tk.DISABLED)
-                for chord in self.progression_chords:
-                    chord["note"].set("")
-                    chord["type"].set("")
-                    chord["button"].config(text="Add", bg=self.colors["bg_dark"])
-                    chord["delete_button"].pack_forget()
-                # Set up defaults after clearing
-                self._setup_default_chord_progression()
-            
-            # Disable note placement mode
+        elif mode == "triad_finder":
+            self.tf_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
             self.note_placement_mode.set(False)
             self.callback("note_placement_mode", {"enabled": False})
         else:  # normal mode
-            # Disable note placement mode
             self.note_placement_mode.set(False)
             self.callback("note_placement_mode", {"enabled": False})
-            
-    def _setup_default_chord_progression(self):
-        """Set up the default chord progression (G major, C major, D major)"""
-        default_chords = [
-            ("G", "Major"),
-            ("C", "Major"),
-            ("D", "Major")
-        ]
-        
-        # Clear existing progression
-        self.chord_progression = []
-        
-        # Add each chord to the progression
-        for i, (note, chord_type) in enumerate(default_chords):
-            # Set the values in the UI
-            self.progression_chords[i]["note"].set(note)
-            self.progression_chords[i]["type"].set(chord_type)
-            
-            # Create and add the chord to the progression
-            try:
-                root_note = Note(note + "4")  # Default to octave 4
-                chord = self.theory.get_chord(root_note, chord_type)
-                self.chord_progression.append(chord)
-                
-                # Update button states
-                self.progression_chords[i]["button"].config(
-                    text="✓",
-                    bg=self.colors["accent1"]
-                )
-                # Show delete button
-                self.progression_chords[i]["delete_button"].pack(side=tk.LEFT, padx=2)
-            except Exception as e:
-                logger.error(f"Error setting up default chord {note} {chord_type}: {e}")
-        
-        # Enable start button since we have chords
-        self.start_game_btn.config(state=tk.NORMAL)
 
-    def _setup_default_triad_settings(self):
-        """Set up default settings for the Revolving Triads game"""
-        # Set default cycle times
-        self.triad_cycle_time.set("7")
-        self.chord_cycle_time.set("21")
-        
-        # Note: We don't set up the chord progression here anymore
-        # It will be set up when the Revolving Triads mode is selected
 
-    def _add_chord_to_progression(self, note_var, type_var, index):
-        """Add a chord to the progression"""
-        note = note_var.get()
-        chord_type = type_var.get()
-        
-        if not note or not chord_type:
+    # ------------------------------------------------------------------ #
+    #  Triad Finder                                                        #
+    # ------------------------------------------------------------------ #
+
+    TRIAD_CHORD_TYPES = ["Major", "Minor", "aug", "dim"]
+    TYPE_DISPLAY = {
+        "Major": "Major", "Minor": "Minor",
+        "aug": "Augmented", "dim": "Diminished"
+    }
+    CHROMATIC_ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+    def _start_triad_finder(self):
+        """Start or restart the Triad Finder game."""
+        import random
+        self.tf_active = True
+
+        # Pick a random chord
+        root = random.choice(self.CHROMATIC_ROOTS)
+        chord_type = random.choice(self.TRIAD_CHORD_TYPES)
+        root_note = Note(root + "4")
+        self.tf_chord = self.theory.get_chord(root_note, chord_type)
+
+        # Extract the 3 triad note names
+        triad = self.tf_chord.get_triad()
+        self.tf_triad_note_names = [n.name for n in triad]
+
+        # Build display name
+        display_type = self.TYPE_DISPLAY.get(chord_type, chord_type)
+        chord_display = f"{root} {display_type}"
+
+        # Phase 1 setup
+        self.tf_phase = 1
+        self.tf_selected_notes = set()
+
+        # Reset note buttons appearance
+        for note_name, btn in self.tf_note_btns.items():
+            btn.config(bg=self.colors["bg_dark"], fg=self.colors["text_primary"])
+
+        # Update status label
+        self.tf_status_label.config(text=f"{chord_display}\nSelect its 3 notes:")
+
+        # Show note selection, hide tracker
+        self.tf_note_selection_frame.pack(fill=tk.X, padx=5, pady=3)
+        self.tf_tracker_label.pack_forget()
+
+        # Hide start btn, show stop btn
+        self.tf_start_btn.pack_forget()
+        self.tf_stop_btn.pack(fill=tk.X, padx=5, pady=3)
+
+        # Tell fretboard to show the chord label (Phase 1 — no targets yet)
+        self.callback("triad_finder_label", {"chord_name": chord_display})
+
+    def _on_tf_note_selected(self, note_name: str):
+        """Handle a note button click during Phase 1."""
+        if self.tf_phase != 1:
             return
-            
-        try:
-            # Create the chord
-            root_note = Note(note + "4")  # Default to octave 4
-            chord = self.theory.get_chord(root_note, chord_type)
-            
-            # Update the progression
-            while len(self.chord_progression) <= index:
-                self.chord_progression.append(None)
-            self.chord_progression[index] = chord
-            
-            # Update button states
-            self.progression_chords[index]["button"].config(
-                text="✓",
-                bg=self.colors["accent1"]
-            )
-            # Show delete button
-            self.progression_chords[index]["delete_button"].pack(side=tk.LEFT, padx=2)
-            
-            # Enable start button if we have at least one chord
-            if any(self.chord_progression):
-                self.start_game_btn.config(state=tk.NORMAL)
-            else:
-                self.start_game_btn.config(state=tk.DISABLED)
-                
-        except Exception as e:
-            logger.error(f"Error adding chord to progression: {e}")
+        if note_name in self.tf_selected_notes:
+            return  # Already selected correctly
 
-    def _delete_chord_from_progression(self, index):
-        """Delete a chord from the progression"""
-        if index < len(self.chord_progression):
-            # Clear the chord
-            self.chord_progression[index] = None
-            
-            # Reset UI elements
-            self.progression_chords[index]["note"].set("")
-            self.progression_chords[index]["type"].set("")
-            self.progression_chords[index]["button"].config(
-                text="Add",
-                bg=self.colors["bg_dark"]
-            )
-            # Hide delete button
-            self.progression_chords[index]["delete_button"].pack_forget()
-            
-            # Update start button state
-            if any(self.chord_progression):
-                self.start_game_btn.config(state=tk.NORMAL)
-            else:
-                self.start_game_btn.config(state=tk.DISABLED)
-
-    def _start_game(self):
-        """Start the revolving triads game"""
-        # Validate chord progression
-        if not any(self.chord_progression):
-            # Show error message
-            tk.messagebox.showwarning(
-                "No Chords Selected",
-                "Please add at least one chord to the progression before starting."
-            )
-            return
-        
-        # Get cycle times from settings
-        try:
-            triad_cycle = float(self.triad_cycle_time.get())  # Use float for more precise timing
-            chord_cycle = float(self.chord_cycle_time.get())
-            
-            if triad_cycle >= chord_cycle:
-                tk.messagebox.showwarning(
-                    "Invalid Settings",
-                    "Triad cycle time must be less than chord cycle time."
-                )
-                return
-        except ValueError:
-            tk.messagebox.showwarning(
-                "Invalid Settings",
-                "Please enter valid numbers for cycle times."
-            )
-            return
-        
-        # Store cycle times
-        self.triad_cycle_seconds = triad_cycle
-        self.chord_cycle_seconds = chord_cycle
-        
-        # Reset game state
-        self.current_chord_index = 0
-        self.is_game_paused.set(False)
-        self._ghost_shown = False
-
-        # Reset timers
-        self.last_chord_change = time.time()
-        self.last_position_change = time.time()
-        self.timer_start_time = time.time()
-        
-        # Use only the selected chords (filter out None values)
-        self.selected_chords = [chord for chord in self.chord_progression if chord is not None]
-        
-        # Show first chord immediately
-        self._update_current_chord()
-        
-        # Show game controls and status
-        self.game_controls_frame.pack(side=tk.TOP, fill=tk.X, padx=3, pady=3)
-        self.game_status_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-        
-        # Start timers
-        self._start_timers()
-        
-    def _start_timers(self):
-        """Start the game timers"""
-        # Stop any existing timers
-        self._stop_timers()
-        
-        # Start the main timer loop
-        self._check_timers()
-        
-        # Start the display timer
-        self._update_timer_display()
-
-    def _check_timers(self):
-        """Check and update all game timers"""
-        if self.is_game_paused.get():
-            return
-
-        current_time = time.time()
-        elapsed_chord = current_time - self.last_chord_change
-
-        # Ghost preview: show during the last 25% of the chord cycle (minimum 4 seconds)
-        preview_window = max(4.0, self.chord_cycle_seconds * 0.25)
-        preview_threshold = self.chord_cycle_seconds - preview_window
-        if elapsed_chord >= preview_threshold and not self._ghost_shown:
-            self._ghost_shown = True
-            next_idx = (self.current_chord_index + 1) % len(self.selected_chords)
-            next_chord = self.selected_chords[next_idx]
-            self.callback("preview_next_chord", {"chord": next_chord})
-
-        # Check chord timer
-        if elapsed_chord >= self.chord_cycle_seconds:
-            self._next_chord()
-            self.last_chord_change = current_time
-            self.timer_start_time = current_time
-            self._ghost_shown = False
-
-        # Check position timer
-        if current_time - self.last_position_change >= self.triad_cycle_seconds:
-            self._next_position()
-            self.last_position_change = current_time
-
-        # Continue checking
-        self.game_timer = self.after(50, self._check_timers)
-
-    def _update_timer_display(self):
-        """Update the timer display"""
-        if self.is_game_paused.get():
-            return
-        
-        # Calculate remaining time until next chord change
-        elapsed = time.time() - self.timer_start_time
-        remaining = max(0, self.chord_cycle_seconds - elapsed)
-        
-        # Convert to minutes and seconds, rounding down to nearest second
-        minutes = int(remaining // 60)
-        seconds = int(remaining % 60)
-        
-        # Update display
-        self.timer_display.config(text=f"Time: {minutes:02d}:{seconds:02d}")
-        
-        # Always continue updating the display
-        self.after(100, self._update_timer_display)
-
-    def _next_chord(self):
-        """Move to the next chord in the sequence"""
-        if not self.selected_chords:
-            return
-
-        # Fire voice-leading callback before moving to the next chord
-        # (the fretboard still holds the current position at this moment)
-        next_idx = (self.current_chord_index + 1) % len(self.selected_chords)
-        next_chord = self.selected_chords[next_idx]
-        self.callback("show_voice_leading", {"to_chord": next_chord})
-
-        # Move to next chord
-        self.current_chord_index = next_idx
-
-        # Update display with visual effect
-        self._update_current_chord()
-
-    def _stop_timers(self):
-        """Stop all game timers"""
-        if self.game_timer:
-            self.after_cancel(self.game_timer)
-            self.game_timer = None
-        
-        # Also cancel the position timer if it exists
-        if hasattr(self, 'position_timer') and self.position_timer:
-            self.after_cancel(self.position_timer)
-            self.position_timer = None
-
-    def _toggle_game_pause(self):
-        """Toggle game pause state"""
-        self.is_game_paused.set(not self.is_game_paused.get())
-        
-        if self.is_game_paused.get():
-            # Pause the game
-            self._stop_timers()
-            self.pause_btn.config(text="Resume")
+        if note_name in self.tf_triad_note_names:
+            # Correct note
+            self.tf_note_btns[note_name].config(bg=self.colors["accent1"],
+                                                fg=self.colors["bg_dark"])
+            self.tf_selected_notes.add(note_name)
+            if len(self.tf_selected_notes) == 3:
+                self._transition_to_phase2()
         else:
-            # Resume the game
-            self._start_timers()
-            self.pause_btn.config(text="Pause")
-            
-    def _stop_game(self):
-        """Stop the game and return to normal mode"""
-        self._stop_timers()
-        
-        # Reset game state
-        self.current_chord_index = 0
-        self.is_game_paused.set(False)
-        
-        # Reset button states
-        self.start_game_btn.config(state=tk.NORMAL if any(self.chord_progression) else tk.DISABLED)
-        self.pause_btn.config(text="Pause")
-        
-        # Clear the fretboard
-        self.callback("clear", {})
-        
-    def _next_position(self):
-        """Move to a new random position for the current chord"""
-        if not self.selected_chords or self.is_game_paused.get():
-            return
-            
-        # Get current chord
-        current_chord = self.selected_chords[self.current_chord_index]
-        
-        # Request a new random position from the callback
-        self.callback("new_position", {"chord": current_chord})
-        
-    def _update_current_chord(self):
-        """Update the current chord display with visual effect"""
-        if not self.selected_chords:
-            return
-            
-        current_chord = self.selected_chords[self.current_chord_index]
-        
-        # Update display with visual effect
-        self.current_chord_display.config(
-            text=f"Current Chord: {current_chord.root.name} {current_chord.chord_type}",
-            fg=self.colors["accent1"]  # Highlight color for effect
-        )
-        
-        # Reset color after a short delay
-        self.after(500, lambda: self.current_chord_display.config(
-            fg=self.colors["text_primary"]
-        ))
-        
-        self._current_chord = current_chord
-        self._current_scale = None
+            # Wrong note — flash red then reset
+            btn = self.tf_note_btns[note_name]
+            btn.config(bg=self.colors["accent2"], fg=self.colors["bg_dark"])
+            self.after(400, lambda b=btn: b.config(
+                bg=self.colors["bg_dark"], fg=self.colors["text_primary"]))
 
-        # Notify callback of chord change with visual effect
-        self.callback("chord_changed", {
-            "chord": current_chord,
-            "visual_effect": "explosion",
-            "revolving_triads": True
+    def _transition_to_phase2(self):
+        """Switch from note selection (Phase 1) to fretboard placement (Phase 2)."""
+        self.tf_phase = 2
+
+        # Hide note selection, show tracker
+        self.tf_note_selection_frame.pack_forget()
+
+        # Build the display name for the chord label
+        chord_type = self.tf_chord.chord_type
+        display_type = self.TYPE_DISPLAY.get(chord_type, chord_type)
+        chord_display = f"{self.tf_chord.root.name} {display_type}"
+
+        # Tell fretboard & main window to start Phase 2
+        self.callback("triad_finder_phase2", {
+            "note_names": self.tf_triad_note_names,
+            "chord": self.tf_chord,
+            "chord_name": chord_display
         })
+
+        # Compute target count via fretboard callback result — but we don't have
+        # direct access to the fretboard here, so set a placeholder; the first
+        # "note_found" callback will give us the real remaining count.
+        # For now show tracker with a "..." placeholder until first note placed.
+        total = self._compute_tf_total()
+        self.tf_tracker_label.config(text=f"Notes remaining: {total}")
+        self.tf_tracker_label.pack(fill=tk.X, padx=5, pady=4)
+        self.tf_status_label.config(text=f"Find all notes on the fretboard!")
+
+    def _compute_tf_total(self) -> int:
+        """Count total target positions (all triad note occurrences, frets 1-13)."""
+        # Standard tuning fret computation
+        tuning = ["E4", "B3", "G3", "D3", "A2", "E2"]
+        count = 0
+        for string_note_name in tuning:
+            open_note = Note(string_note_name)
+            for fret in range(1, 14):
+                if open_note.transpose(fret).name in self.tf_triad_note_names:
+                    count += 1
+        return count
+
+    def on_triad_finder_event(self, event_type: str, data: dict):
+        """Receive feedback from fretboard during Phase 2."""
+        if event_type == "note_found":
+            remaining = data.get("remaining", 0)
+            self.tf_tracker_label.config(text=f"Notes remaining: {remaining}")
+        elif event_type == "all_found":
+            self.tf_tracker_label.config(text="Chord Complete!")
+            self.tf_status_label.config(text="Nice work!")
+            self.after(1500, self._start_triad_finder)
+
+    def _stop_triad_finder(self):
+        """Stop the game and return to idle."""
+        self.tf_active = False
+        self.tf_phase = 0
+        self.tf_chord = None
+        self.tf_note_selection_frame.pack_forget()
+        self.tf_tracker_label.pack_forget()
+        self.tf_start_btn.pack(fill=tk.X, padx=5, pady=3)
+        self.tf_stop_btn.pack_forget()
+        self.tf_status_label.config(text="")
+        self.callback("triad_finder_stop", {})
+
 
     def _clear_placed_notes(self):
         """Clear all manually placed notes"""
