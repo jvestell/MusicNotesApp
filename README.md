@@ -35,7 +35,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 3. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-python.txt
 ```
 
 ## Running the Application
@@ -80,7 +80,7 @@ GuitarTheoryApp/
 │   └── tunings.json
 ├── utils/             # Utility functions
 ├── main.py           # Application entry point
-├── requirements.txt  # Python dependencies
+├── requirements-python.txt  # Python desktop deps (renamed so Netlify skips it)
 └── README.md        # This file
 ```
 
