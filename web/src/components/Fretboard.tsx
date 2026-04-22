@@ -27,6 +27,7 @@ export function Fretboard({ width, height }: Props) {
   const drag = useStore((s) => s.drag);
   const dropNoteOnFret = useStore((s) => s.dropNoteOnFret);
   const endDrag = useStore((s) => s.endDrag);
+  const setDropHandler = useStore((s) => s.setDropHandler);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hover, setHover] = useState<{ s: number; f: number } | null>(null);
@@ -83,15 +84,23 @@ export function Fretboard({ width, height }: Props) {
     return out;
   }, [displayedNoteNames, tuning, gameMode, highlight, highlightSet, rootName]);
 
-  // Click handler — play note
-  function posFromEvent(e: React.PointerEvent): { s: number; f: number } | null {
+  // Convert client coords → (string, fret) on the board. Returns null if outside.
+  function posFromClient(clientX: number, clientY: number): { s: number; f: number } | null {
     const svg = svgRef.current;
     if (!svg) return null;
     const rect = svg.getBoundingClientRect();
+    if (
+      clientX < rect.left ||
+      clientX > rect.right ||
+      clientY < rect.top ||
+      clientY > rect.bottom
+    ) {
+      return null;
+    }
     const scaleX = width / rect.width;
     const scaleY = height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
 
     if (y < boardY0 - stringSpacing / 2 || y > boardY1 + stringSpacing / 2) return null;
     const s = Math.max(0, Math.min(STRINGS - 1, Math.round((y - boardY0) / stringSpacing)));
@@ -105,14 +114,14 @@ export function Fretboard({ width, height }: Props) {
 
   function onPointerDown(e: React.PointerEvent) {
     if (drag) return;
-    const p = posFromEvent(e);
+    const p = posFromClient(e.clientX, e.clientY);
     if (!p) return;
     const n = noteAt(tuning, p.s, p.f);
     void playNote(n);
   }
 
   function onPointerMove(e: React.PointerEvent) {
-    const p = posFromEvent(e);
+    const p = posFromClient(e.clientX, e.clientY);
     setHover(p);
   }
 
@@ -120,30 +129,25 @@ export function Fretboard({ width, height }: Props) {
     setHover(null);
   }
 
-  function onPointerUp(e: React.PointerEvent) {
-    if (!drag) return;
-    const p = posFromEvent(e);
-    if (p) {
+  const tfActive = tf.active && tf.phase === 2;
+
+  // Register a global drop handler so drops from the palette commit here
+  // regardless of which element received the pointerup (implicit touch capture, etc.)
+  useEffect(() => {
+    const handler = (cx: number, cy: number): boolean => {
+      const p = posFromClient(cx, cy);
+      if (!p) return false;
       const ok = dropNoteOnFret(p.s, p.f);
       if (ok) {
         const n = noteAt(tuning, p.s, p.f);
         void playNote(n);
       }
-    }
-    endDrag();
-  }
-
-  // Click a target TF dot to also accept the placement (no-op in other modes)
-  const tfActive = tf.active && tf.phase === 2;
-
-  // Register a global pointerup so if drop happens elsewhere we still end drag
-  useEffect(() => {
-    function up() {
-      if (drag) endDrag();
-    }
-    window.addEventListener('pointerup', up);
-    return () => window.removeEventListener('pointerup', up);
-  }, [drag, endDrag]);
+      return ok;
+    };
+    setDropHandler(handler);
+    return () => setDropHandler(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height, tuning, dropNoteOnFret, setDropHandler]);
 
   return (
     <div className="relative w-full h-full" style={{ userSelect: 'none' }}>
@@ -155,7 +159,6 @@ export function Fretboard({ width, height }: Props) {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
-        onPointerUp={onPointerUp}
         style={{ touchAction: 'none' }}
       >
         <defs>

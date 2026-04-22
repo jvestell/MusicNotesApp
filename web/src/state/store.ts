@@ -54,6 +54,7 @@ interface AppState {
 
   paletteFilter: NoteName[] | null;
   drag: DragState | null;
+  dropHandler: ((clientX: number, clientY: number) => boolean) | null;
 
   triadFinder: TriadFinderState;
 
@@ -74,6 +75,7 @@ interface AppState {
   updateDrag: (x: number, y: number) => void;
   endDrag: () => void;
   dropNoteOnFret: (string: number, fret: number) => boolean;
+  setDropHandler: (fn: ((clientX: number, clientY: number) => boolean) | null) => void;
 
   startTriadFinder: () => void;
   stopTriadFinder: () => void;
@@ -101,6 +103,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   paletteFilter: null,
   drag: null,
+  dropHandler: null,
 
   triadFinder: {
     active: false,
@@ -134,9 +137,22 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setTuning: (name) => set({ tuning: name }),
-  setRoot: (name) => set({ selectedRoot: name }),
-  setChordType: (name) => set({ selectedChordType: name }),
-  setScaleType: (name) => set({ selectedScaleType: name }),
+
+  setRoot: (name) => {
+    set({ selectedRoot: name });
+    const s = get();
+    if (s.gameMode !== 'normal') return;
+    if (s.currentScale) s.showScale();
+    else s.showChord();
+  },
+  setChordType: (name) => {
+    set({ selectedChordType: name });
+    if (get().gameMode === 'normal') get().showChord();
+  },
+  setScaleType: (name) => {
+    set({ selectedScaleType: name });
+    if (get().gameMode === 'normal') get().showScale();
+  },
 
   showChord: () => {
     const { selectedRoot, selectedChordType } = get();
@@ -158,6 +174,7 @@ export const useStore = create<AppState>((set, get) => ({
   updateDrag: (x, y) =>
     set((s) => (s.drag ? { drag: { ...s.drag, x, y } } : {})),
   endDrag: () => set({ drag: null }),
+  setDropHandler: (fn) => set({ dropHandler: fn }),
 
   dropNoteOnFret: (stringIdx, fret) => {
     const state = get();

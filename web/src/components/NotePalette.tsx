@@ -8,17 +8,28 @@ export function NotePalette() {
   const drag = useStore((s) => s.drag);
   const startDrag = useStore((s) => s.startDrag);
   const updateDrag = useStore((s) => s.updateDrag);
+  const endDrag = useStore((s) => s.endDrag);
 
   useEffect(() => {
     if (!drag) return;
     document.body.classList.add('dragging');
     const move = (e: PointerEvent) => updateDrag(e.clientX, e.clientY);
+    const up = (e: PointerEvent) => {
+      const handler = useStore.getState().dropHandler;
+      if (handler) handler(e.clientX, e.clientY);
+      endDrag();
+    };
+    const cancel = () => endDrag();
     window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
     return () => {
       document.body.classList.remove('dragging');
       window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
     };
-  }, [drag, updateDrag]);
+  }, [drag, updateDrag, endDrag]);
 
   const showNote = (n: NoteName) => !filter || filter.includes(n);
 
@@ -62,9 +73,10 @@ function PaletteButton({
       disabled={!visible}
       onPointerDown={(e) => {
         if (!visible) return;
-        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        e.preventDefault();
         onDrag(note, e.clientX, e.clientY);
       }}
+      style={{ touchAction: 'none' }}
       className={`font-display font-bold text-lg h-10 rounded-lg border transition-all ${
         visible
           ? 'bg-ink-700/70 border-neon-cyan/40 text-neon-cyan hover:bg-neon-cyan/15 hover:shadow-glow-cyan cursor-grab'
