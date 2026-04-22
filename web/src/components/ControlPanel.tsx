@@ -3,13 +3,11 @@ import { NOTE_NAMES, NATURAL_NOTES, SHARP_NOTES, NoteName } from '../theory/note
 import { CHORD_TYPES } from '../data/chordFormulas';
 import { UI_SCALE_TYPES } from '../data/scaleFormulas';
 import { TUNING_LABELS } from '../data/tunings';
-import { TriadFinderPanel } from './TriadFinderPanel';
 import { playChord, playScale } from '../audio/engine';
 
 const GAME_MODES: Array<{ id: GameMode; label: string; blurb: string }> = [
-  { id: 'normal', label: 'Explorer', blurb: 'View chords & scales on the neck' },
+  { id: 'normal', label: 'Explore', blurb: 'View chords & scales on the neck' },
   { id: 'notePlacement', label: 'Note Drop', blurb: 'Drag notes onto the fretboard' },
-  { id: 'triadFinder', label: 'Triad Hunt', blurb: 'Quiz: find every triad tone' },
 ];
 
 const HIGHLIGHTS: Array<{ id: HighlightType; label: string }> = [
@@ -46,12 +44,12 @@ export function ControlPanel() {
       {/* Mode Switcher */}
       <div>
         <Label>Game Mode</Label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {GAME_MODES.map((m) => (
             <button
               key={m.id}
               onClick={() => setGameMode(m.id)}
-              className={`btn ${gameMode === m.id ? 'btn-active' : ''}`}
+              className={`btn !py-2.5 ${gameMode === m.id ? 'btn-active' : ''}`}
               title={m.blurb}
             >
               {m.label}
@@ -63,11 +61,7 @@ export function ControlPanel() {
         </div>
       </div>
 
-      {gameMode === 'triadFinder' ? (
-        <TriadFinderPanel />
-      ) : (
-        <>
-          {/* Root */}
+      {/* Root */}
           <div>
             <Label>Root Note</Label>
             <div className="grid grid-cols-7 gap-1.5">
@@ -205,11 +199,9 @@ export function ControlPanel() {
             </div>
           )}
 
-          <button onClick={clearDisplay} className="btn-ghost w-fit">
-            Clear display
-          </button>
-        </>
-      )}
+      <button onClick={clearDisplay} className="btn-ghost w-fit">
+        Clear display
+      </button>
 
       {/* Tuning */}
       <div className="border-t border-white/10 pt-3">

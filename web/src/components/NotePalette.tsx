@@ -4,7 +4,6 @@ import { useStore } from '../state/store';
 import { NATURAL_NOTES, SHARP_NOTES, NoteName } from '../theory/note';
 
 export function NotePalette() {
-  const filter = useStore((s) => s.paletteFilter);
   const drag = useStore((s) => s.drag);
   const startDrag = useStore((s) => s.startDrag);
   const updateDrag = useStore((s) => s.updateDrag);
@@ -31,8 +30,6 @@ export function NotePalette() {
     };
   }, [drag, updateDrag, endDrag]);
 
-  const showNote = (n: NoteName) => !filter || filter.includes(n);
-
   return (
     <div className="glass rounded-2xl p-3 flex flex-col gap-2">
       <div className="text-[10px] font-display uppercase tracking-[0.3em] text-neon-cyan/80 text-center pt-1">
@@ -41,12 +38,12 @@ export function NotePalette() {
       <div className="grid grid-cols-2 gap-1.5">
         <div className="flex flex-col gap-1.5">
           {NATURAL_NOTES.map((n) => (
-            <PaletteButton key={n} note={n} visible={showNote(n)} onDrag={startDrag} />
+            <PaletteButton key={n} note={n} visible onDrag={startDrag} />
           ))}
         </div>
         <div className="flex flex-col gap-1.5">
           {SHARP_NOTES.map((n) => (
-            <PaletteButton key={n} note={n} visible={showNote(n)} onDrag={startDrag} />
+            <PaletteButton key={n} note={n} visible onDrag={startDrag} />
           ))}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useStore, highlightedNotes, posKeyFn } from '../state/store';
+import { useStore, highlightedNotes } from '../state/store';
 import { noteAt } from '../theory/fretboard';
 import { TUNINGS } from '../data/tunings';
 import { NoteName } from '../theory/note';
@@ -23,7 +23,6 @@ export function Fretboard({ width, height }: Props) {
   const highlight = useStore((s) => s.highlight);
   const placedNotes = useStore((s) => s.placedNotes);
   const gameMode = useStore((s) => s.gameMode);
-  const tf = useStore((s) => s.triadFinder);
   const drag = useStore((s) => s.drag);
   const dropNoteOnFret = useStore((s) => s.dropNoteOnFret);
   const endDrag = useStore((s) => s.endDrag);
@@ -66,7 +65,7 @@ export function Fretboard({ width, height }: Props) {
   // Positions to render (from displayed notes)
   const displayedPositions = useMemo(() => {
     const out: Array<{ string: number; fret: number; name: NoteName; isRoot: boolean; isHighlighted: boolean }> = [];
-    if (gameMode === 'notePlacement' || gameMode === 'triadFinder') return out;
+    if (gameMode === 'notePlacement') return out;
     if (displayedNoteNames.size === 0) return out;
     for (let s = 0; s < STRINGS; s++) {
       for (let f = 0; f <= FRETS; f++) {
@@ -128,8 +127,6 @@ export function Fretboard({ width, height }: Props) {
   function onPointerLeave() {
     setHover(null);
   }
-
-  const tfActive = tf.active && tf.phase === 2;
 
   // Register a global drop handler so drops from the palette commit here
   // regardless of which element received the pointerup (implicit touch capture, etc.)
@@ -312,70 +309,6 @@ export function Fretboard({ width, height }: Props) {
             {n.replace(/\d+$/, '')}
           </text>
         ))}
-
-        {/* Triad finder chord title */}
-        {tf.active && tf.chord && (
-          <text
-            x={width / 2}
-            y={20}
-            textAnchor="middle"
-            fill="#00e5ff"
-            fontFamily="Orbitron, sans-serif"
-            fontSize={18}
-            fontWeight={700}
-          >
-            {tf.chord.root.name} {tf.chord.chordType}
-          </text>
-        )}
-
-        {/* TF phase 2 target faint hints (optional — show tiny dots at targets not yet found) */}
-        {tfActive &&
-          Array.from(tf.targetPositions).map((k) => {
-            const [ss, ff] = k.split(',').map(Number);
-            if (tf.foundPositions.has(k)) return null;
-            return (
-              <circle
-                key={`tgt-${k}`}
-                cx={fretCenterX(ff)}
-                cy={stringY(ss)}
-                r={Math.min(fretSpacing, stringSpacing) * 0.32}
-                fill="url(#dot-target)"
-                stroke="rgba(0,229,255,0.35)"
-                strokeDasharray="2 3"
-              />
-            );
-          })}
-
-        {/* TF phase 2 found positions */}
-        {tfActive &&
-          Array.from(tf.foundPositions).map((k) => {
-            const [ss, ff] = k.split(',').map(Number);
-            const r = Math.min(fretSpacing, stringSpacing) * 0.38;
-            const name = noteAt(tuning, ss, ff).name;
-            return (
-              <g key={`found-${k}`} filter="url(#glow)">
-                <circle
-                  cx={fretCenterX(ff)}
-                  cy={stringY(ss)}
-                  r={r}
-                  fill="url(#dot-accent)"
-                  stroke="rgba(57,255,136,0.85)"
-                  strokeWidth={1.5}
-                />
-                <text
-                  x={fretCenterX(ff)}
-                  y={stringY(ss) + 4}
-                  textAnchor="middle"
-                  fontFamily="Orbitron, sans-serif"
-                  fontSize={11}
-                  fontWeight={700}
-                  fill="#05060d"
-                >
-                  {name}
-                </text>
-              </g>
-            );
-          })}
 
         {/* Displayed chord/scale notes */}
         {displayedPositions.map(({ string, fret, name, isRoot, isHighlighted }) => {

@@ -10,7 +10,7 @@ import { useStore } from './state/store';
 export default function App() {
   const { ref, width, height } = useElementSize<HTMLDivElement>();
   const gameMode = useStore((s) => s.gameMode);
-  const showPalette = gameMode === 'notePlacement' || gameMode === 'triadFinder';
+  const showPalette = gameMode === 'notePlacement';
 
   // Seed a chord on first load for Explorer mode.
   useEffect(() => {
