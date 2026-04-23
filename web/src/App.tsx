@@ -123,7 +123,7 @@ function Logo() {
 function Footer() {
   return (
     <div className="text-[11px] text-slate-500 text-center pt-1">
-      Tap the neck to hear a note · Space for chord playback coming soon ·{' '}
+      Tap the neck to hear a note ·{' '}
       <a
         className="text-neon-cyan/80 hover:text-neon-cyan"
         href="https://www.netlify.com/"
